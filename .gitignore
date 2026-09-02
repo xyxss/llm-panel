@@ -1,0 +1,23 @@
+# secrets & keys — NEVER commit
+config/secrets.json
+*.key
+.vlm_api_key
+
+# logs
+logs/
+*.log
+
+# python
+__pycache__/
+*.pyc
+
+# models, weights & virtualenvs (huge / machine-specific — live in ~ , not the repo)
+models/
+*.gguf
+*.safetensors
+vllm-env/
+.hf-venv/
+
+# os / editor
+.DS_Store
+*.swp

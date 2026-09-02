@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local LLM Control Panel</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2230; --line:#2a3240; --line2:#3a4658;
+    --fg:#e6edf3; --muted:#9aa7b4; --accent:#4f9cff; --accent2:#7c5cff;
+    --ok:#3fb950; --warn:#e3b341; --bad:#f85149; --chip:#20283a;
+    --shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f5f7fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#e2e8f0; --line2:#cfd8e3;
+      --fg:#141a22; --muted:#5a6673; --chip:#eef2f8; --shadow:0 6px 20px rgba(20,30,50,.10);}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,sans-serif;}
+  a{color:var(--accent)}
+  .wrap{max-width:1060px;margin:0 auto;padding:20px 18px 60px}
+  header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:14px}
+  h1{font-size:19px;margin:0;font-weight:650;letter-spacing:.2px}
+  h1 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:middle;background:var(--muted)}
+  .sub{color:var(--muted);font-size:12.5px}
+  .spacer{flex:1}
+  .keybox{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);
+    border-radius:9px;padding:5px 8px}
+  .keybox input{background:transparent;border:0;color:var(--fg);outline:none;width:150px;font:12px monospace}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+  .grid{display:grid;gap:14px}
+  @media(min-width:720px){.two{grid-template-columns:1fr 1fr}}
+  .label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px}
+  .big{font-size:26px;font-weight:700;line-height:1.15}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted)}
+  .chip.on{color:var(--fg)}
+  .kv{display:flex;gap:18px;flex-wrap:wrap;margin-top:6px}
+  .kv div .label{margin-bottom:2px}
+  .kv b{font-size:15px;font-weight:650}
+  /* vram bar */
+  .bar{height:12px;border-radius:7px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;position:relative}
+  .bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .5s}
+  .bar.warn>span{background:linear-gradient(90deg,#e3b341,#f0883e)}
+  .bar.bad>span{background:linear-gradient(90deg,#f85149,#da3633)}
+  .barwrap .row{justify-content:space-between;font-size:12px;color:var(--muted);margin-top:5px}
+  /* health chip */
+  .health{font-weight:600}
+  .health.ready{color:var(--ok)} .health.loading{color:var(--warn)} .health.down{color:var(--bad)}
+  h2{font-size:14px;margin:22px 2px 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+  /* preset cards */
+  .presets{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(232px,1fr))}
+  .preset{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px 13px 12px;position:relative;transition:border-color .15s,transform .1s}
+  .preset:hover{border-color:var(--line2)}
+  .preset.live{border-color:var(--ok);box-shadow:0 0 0 1px var(--ok) inset}
+  .preset .name{font-weight:700;font-size:15px}
+  .preset .tag{font-size:10.5px;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.5px}
+  .tag.recommended{background:rgba(63,185,80,.16);color:var(--ok)}
+  .tag.tight{background:rgba(227,179,65,.16);color:var(--warn)}
+  .tag.quality{background:rgba(79,156,255,.16);color:var(--accent)}
+  .preset .note{color:var(--muted);font-size:12px;min-height:32px;margin:6px 0}
+  .specs{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:12px;margin-bottom:9px}
+  .specs .label{margin:0}
+  .minibar{height:6px;border-radius:4px;background:var(--panel2);overflow:hidden;margin:2px 0 9px}
+  .minibar>span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .minibar.warn>span{background:var(--warn)} .minibar.bad>span{background:var(--bad)}
+  .pbtns{display:flex;gap:7px}
+  button{font:inherit;cursor:pointer;border-radius:9px;border:1px solid var(--line2);
+    background:var(--panel2);color:var(--fg);padding:8px 12px;transition:filter .12s,background .12s}
+  button:hover{filter:brightness(1.12)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;font-weight:600}
+  button.ghost{background:transparent}
+  button.sm{padding:5px 9px;font-size:12px}
+  .star{position:absolute;top:10px;right:11px;font-size:12px;letter-spacing:1px;color:var(--ok);font-weight:600;white-space:nowrap;pointer-events:none}
+  .cardhead{padding-right:56px}          /* reserve room for the absolute .star badge */
+  .preset .name{word-break:break-word}   /* long endpoint/engine names wrap instead of underlapping */
+  /* profiles */
+  .profiles{display:grid;gap:12px}
+  @media(min-width:640px){.profiles{grid-template-columns:1fr 1fr}}
+  .profile{border:1px solid var(--line);border-radius:13px;padding:14px;background:linear-gradient(180deg,var(--panel),var(--panel2))}
+  .profile .ptitle{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
+  .profile select{background:var(--panel);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:6px 8px;font:inherit}
+  /* custom builder */
+  .field{margin:10px 0}
+  input[type=range]{width:100%}
+  select,input[type=number]{background:var(--panel2);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:7px 9px;font:inherit}
+  .estline{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:13px}
+  .estval{font-weight:700;font-size:16px}
+  /* log */
+  pre.log{background:#0b0e13;color:#c9d4df;border:1px solid var(--line);border-radius:11px;padding:12px;
+    font:11.5px/1.5 ui-monospace,Menlo,Consolas,monospace;max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+  @media (prefers-color-scheme: light){pre.log{background:#0e1420;color:#cdd8e4}}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel);
+    border:1px solid var(--line2);border-radius:10px;padding:11px 16px;box-shadow:var(--shadow);max-width:90%;
+    opacity:0;pointer-events:none;transition:opacity .2s, transform .2s}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+  .toast.ok{border-color:var(--ok)} .toast.bad{border-color:var(--bad)}
+  .banner{display:none;align-items:center;gap:10px;background:rgba(227,179,65,.12);border:1px solid var(--warn);
+    color:var(--fg);border-radius:11px;padding:10px 14px;margin-bottom:14px;font-size:13px}
+  .banner.show{display:flex}
+  .spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--warn);border-top-color:transparent;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .muted{color:var(--muted)}
+  .foot{margin-top:26px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1><span class="dot" id="hdot"></span>Local LLM Control Panel</h1>
+      <div class="sub" id="hsub">RTX 5080 · llama.cpp · loading…</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="keybox" title="API key from ~/.vlm_api_key — needed to apply changes. Stored only in this browser.">
+      <span class="muted">🔑</span>
+      <input id="apikey" type="password" placeholder="API key" autocomplete="off" spellcheck="false">
+      <button class="sm ghost" id="savekey">save</button>
+    </div>
+  </header>
+
+  <div class="banner" id="switchBanner"><span class="spin"></span><span id="switchMsg"></span></div>
+  <div class="banner" id="refreshBanner" style="border-color:var(--accent);background:rgba(79,156,255,.12)">
+    <span>🔄 The panel was updated on the server — reload to get the new version.</span>
+    <span class="spacer"></span>
+    <button class="sm primary" id="reloadBtn">Reload now</button>
+  </div>
+
+  <!-- STATUS -->
+  <div class="grid two" style="margin-bottom:6px">
+    <div class="card">
+      <div class="label">Currently serving</div>
+      <div class="big" id="curModel">—</div>
+      <div class="kv" id="curKv"></div>
+      <div class="row" style="margin-top:12px">
+        <span class="chip" id="chHealth">health: —</span>
+        <span class="chip" id="chTps">— t/s</span>
+        <span class="spacer"></span>
+        <button class="sm ghost" id="btnStop" title="Stop the server (frees the GPU)">Stop server</button>
+      </div>
+    </div>
+    <div class="card barwrap">
+      <div class="label">GPU memory · <span id="gpuName">RTX 5080</span></div>
+      <div class="big" id="vramBig">—</div>
+      <div class="bar" id="vramBar"><span style="width:0%"></span></div>
+      <div class="row"><span id="vramL">used —</span><span id="vramR">— free · <span id="gpuUtil">—</span>% · <span id="gpuTemp">—</span>°C</span></div>
+    </div>
+  </div>
+
+  <!-- ROUTER + ENDPOINTS -->
+  <div class="card" style="margin-top:14px;border-color:var(--accent)">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <div class="label">One endpoint for every tool — point your harness here</div>
+        <div class="row"><code id="routerUrl" style="font-size:15px;font-weight:700">…</code>
+          <button class="sm ghost" id="copyRouter">copy</button></div>
+        <div class="muted" style="font-size:12px;margin-top:3px">Any model id works. The panel decides which backend actually answers. Legacy direct URL <code id="directUrl">:8000/v1</code> still points only at the local model.</div>
+      </div>
+      <div style="text-align:right">
+        <div class="label">Active backend</div>
+        <div class="big" id="activeEp" style="font-size:18px">—</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Models &amp; endpoints — local + cloud</h2>
+  <div class="presets" id="endpointGrid"></div>
+  <div class="row" style="margin-top:10px">
+    <button class="ghost sm" id="addEpBtn">＋ Add a cloud / custom OpenAI-compatible endpoint</button>
+  </div>
+  <div class="card" id="addEpForm" style="display:none;margin-top:12px">
+    <div class="grid two">
+      <div class="field"><div class="label">Name / id</div><input id="epId" placeholder="e.g. my-openrouter" style="width:100%"></div>
+      <div class="field"><div class="label">Label</div><input id="epLabel" placeholder="OpenRouter — Claude" style="width:100%"></div>
+      <div class="field"><div class="label">Base URL (OpenAI-compatible, ends in /v1)</div><input id="epBase" placeholder="https://openrouter.ai/api/v1" style="width:100%"></div>
+      <div class="field"><div class="label">Model id</div><input id="epModel" placeholder="anthropic/claude-3.5-sonnet" style="width:100%"></div>
+      <div class="field"><div class="label">API key (stored server-side in secrets.json, chmod 600)</div><input id="epKey" type="password" placeholder="sk-…" style="width:100%"></div>
+      <div class="field row" style="align-items:end"><label class="muted" style="font-size:13px"><input type="checkbox" id="epVision"> supports vision</label></div>
+    </div>
+    <button class="primary sm" id="saveEp">Save endpoint</button>
+    <button class="ghost sm" id="cancelEp">Cancel</button>
+  </div>
+
+  <!-- ENGINE -->
+  <h2>Inference engine — the local serving backend</h2>
+  <div class="presets" id="engineGrid"></div>
+  <div class="muted" style="font-size:12px;margin-top:8px">Only ONE engine can hold the 16 GB GPU at a time. Switching stops the current one and starts the other. llama.cpp is the only engine that runs your GGUF vision model. vLLM/Ollama options below are saved even before they're installed, and used when you switch to them.</div>
+  <div class="card" id="engineOpts" style="display:none;margin-top:12px;border-color:var(--accent2)">
+    <div class="row" style="justify-content:space-between">
+      <div class="label" id="engineOptsTitle" style="font-size:13px;color:var(--fg)">Engine options</div>
+      <button class="ghost sm" id="engineOptsClose">close</button>
+    </div>
+    <div class="presets" id="engineOptsBody" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-top:8px"></div>
+    <div class="muted" id="engineOptsNote" style="font-size:12px;margin-top:8px"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:8px">
+      <button class="primary sm" id="engineOptsSave">Save options</button>
+    </div>
+  </div>
+
+  <!-- PROFILES -->
+  <h2>Local model presets — Default vs Testing</h2>
+  <div class="profiles">
+    <div class="profile">
+      <div class="ptitle">⭐ Default <span class="muted" style="font-weight:400">— your stable everyday preset</span></div>
+      <div class="field row">
+        <select id="selDefault"></select>
+        <button class="primary" id="applyDefault">Apply Default</button>
+      </div>
+      <div class="muted" id="defMeta" style="font-size:12.5px"></div>
+    </div>
+    <div class="profile">
+      <div class="ptitle">🧪 Testing <span class="muted" style="font-weight:400">— experiment with bigger context / KV</span></div>
+      <div class="field row">
+        <select id="selTesting"></select>
+        <button class="primary" id="applyTesting">Apply Testing</button>
+      </div>
+      <div class="muted" id="testMeta" style="font-size:12.5px"></div>
+    </div>
+  </div>
+
+  <!-- PRESETS -->
+  <h2>All presets</h2>
+  <div class="presets" id="presetGrid"></div>
+  <div class="row" style="margin-top:10px"><button class="ghost sm" id="newPresetBtn">＋ New preset</button>
+    <span class="muted" style="font-size:12px">✏️ edits a preset · ⭐/🧪 set it as your Default/Testing profile · Apply loads it now</span></div>
+  <div class="card" id="presetEditor" style="display:none;margin-top:12px;border-color:var(--accent2)">
+    <div class="row" style="justify-content:space-between"><div class="label" id="presetEditorTitle" style="color:var(--fg);font-size:13px">Edit preset</div><button class="ghost sm" id="presetEditorClose">close</button></div>
+    <div class="presets" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-top:8px">
+      <div><div class="label">id / name</div><input id="pe_id" style="width:100%"></div>
+      <div><div class="label">model <span class="muted">(from ~/models)</span></div><select id="pe_model" style="width:100%"></select></div>
+      <div><div class="label">KV cache</div><select id="pe_kv" style="width:100%"><option value="q4_0">q4_0</option><option value="q8_0">q8_0</option><option value="f16">f16</option></select></div>
+      <div><div class="label">context (tokens)</div><input id="pe_ctx" type="number" step="1024" style="width:100%"></div>
+      <div><div class="label">parallel slots</div><input id="pe_parallel" type="number" min="1" style="width:100%"></div>
+      <div><div class="label">gpu layers (ngl)</div><input id="pe_ngl" type="number" style="width:100%"></div>
+      <div><div class="label">thinking</div><select id="pe_thinking" style="width:100%"><option value="">(inherit global)</option><option value="auto">auto</option><option value="on">on</option><option value="off">off</option></select></div>
+      <div><div class="label">reason effort</div><select id="pe_reason_effort" style="width:100%"><option value="">(inherit)</option><option value="default">default</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></div>
+      <div><div class="label">context shift</div><select id="pe_context_shift" style="width:100%"><option value="">(inherit)</option><option value="off">off</option><option value="on">on</option></select></div>
+      <div><div class="label">cache-reuse</div><input id="pe_cache_reuse" type="number" min="0" placeholder="(inherit)" style="width:100%"></div>
+      <div><div class="label">image-min-tokens</div><input id="pe_image_min_tokens" type="number" min="0" placeholder="(inherit)" style="width:100%"></div>
+      <div><div class="label">tag <span class="muted">(colour badge)</span></div><input id="pe_tag" placeholder="recommended / tight / agent / vision / quality" style="width:100%"></div>
+    </div>
+    <div class="field"><div class="label">note</div><input id="pe_note" style="width:100%"></div>
+    <div class="estline"><span class="muted" id="pe_est"></span></div>
+    <div class="row" style="justify-content:space-between;margin-top:8px">
+      <button class="ghost sm" id="pe_delete" style="color:var(--bad);border-color:var(--bad)">Delete preset</button>
+      <button class="primary sm" id="pe_save">Save preset</button>
+    </div>
+  </div>
+
+  <!-- CUSTOM -->
+  <h2>Custom preset</h2>
+  <div class="card">
+    <div class="grid two">
+      <div>
+        <div class="field">
+          <div class="label">Context window (tokens): <b id="ctxVal">98304</b> <span class="muted" id="ctxPer"></span></div>
+          <input type="range" id="ctxRange" min="8192" max="200704" step="8192" value="98304">
+        </div>
+        <div class="field row">
+          <div>
+            <div class="label">KV cache precision</div>
+            <select id="kvSel">
+              <option value="q4_0">q4_0 — ¼ memory, most context</option>
+              <option value="q8_0">q8_0 — ½ memory, best quality</option>
+              <option value="f16">f16 — full precision (2× memory)</option>
+            </select>
+          </div>
+          <div>
+            <div class="label">Parallel slots</div>
+            <input type="number" id="parSel" min="1" max="8" value="1" style="width:80px">
+          </div>
+        </div>
+        <div class="muted" style="font-size:12px" id="kvHint"></div>
+      </div>
+      <div>
+        <div class="label">Estimated VRAM at load</div>
+        <div class="estline"><span class="estval" id="estVal">—</span><span class="muted" id="estOf"></span></div>
+        <div class="minibar" id="estBar"><span style="width:0%"></span></div>
+        <div class="muted" style="font-size:12px" id="estNote"></div>
+        <div class="field muted" style="font-size:12px" id="perSlot"></div>
+        <button class="primary" id="applyCustom" style="margin-top:8px">Apply custom preset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- THINKING & CONTEXT (llama.cpp runtime) -->
+  <h2>Thinking &amp; context handling <span class="muted" style="text-transform:none;font-weight:400">— llama.cpp runtime (needs a restart to take effect)</span></h2>
+  <div class="card">
+    <div class="grid two">
+      <div>
+        <div class="field">
+          <div class="label">Thinking / reasoning</div>
+          <select id="rt_thinking" style="width:100%">
+            <option value="auto">auto — chat template decides</option>
+            <option value="on">on — always reason (best quality, slower, burns tokens)</option>
+            <option value="off">off — never reason (fast, best for tool-calling agents)</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="label">Reasoning effort <span class="muted">(when thinking on)</span></div>
+          <select id="rt_reason_effort" style="width:100%">
+            <option value="">default</option><option value="low">low</option>
+            <option value="medium">medium</option><option value="high">high</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="label">Context shift <span class="muted">(what happens when the window fills)</span></div>
+          <select id="rt_context_shift" style="width:100%">
+            <option value="off">off — error when full (RECOMMENDED for agents; harness compacts)</option>
+            <option value="on">on — drop oldest tokens &amp; keep going (corrupts agent state)</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <div class="label">cache-reuse (tokens) <span class="muted">— KV prefix reuse; 0 disables</span></div>
+          <input type="number" id="rt_cache_reuse" min="0" step="64" style="width:100%">
+        </div>
+        <div class="field">
+          <div class="label">image-min-tokens <span class="muted">— Qwen-VL grounding needs ≥1024</span></div>
+          <input type="number" id="rt_image_min_tokens" min="0" step="128" style="width:100%">
+        </div>
+        <div class="field">
+          <div class="label">extra llama-server flags <span class="muted">(advanced, appended verbatim)</span></div>
+          <input type="text" id="rt_extra_flags" placeholder='e.g. --slots --metrics' style="width:100%">
+        </div>
+        <div class="field muted" id="compactionNote" style="font-size:12px"></div>
+      </div>
+    </div>
+    <div class="row" style="justify-content:flex-end;gap:8px">
+      <button class="ghost sm" id="saveRt">Save (apply on next restart)</button>
+      <button class="primary sm" id="saveRtApply">Save &amp; restart model now</button>
+    </div>
+  </div>
+
+  <!-- OPERATING SETTINGS -->
+  <h2>Operating settings <span class="muted" style="text-transform:none;font-weight:400">— generation defaults the router applies</span></h2>
+  <div class="card">
+    <div class="muted" style="font-size:12.5px;margin-bottom:10px">Applied by the router to <code>/chat/completions</code> for whichever backend is active (local or cloud). By default they fill in only values a client omits — flip “override client” to force them.</div>
+    <div class="presets" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+      <div><div class="label">temperature</div><input type="number" step="0.05" min="0" max="2" id="g_temperature" style="width:100%"></div>
+      <div><div class="label">top_p</div><input type="number" step="0.05" min="0" max="1" id="g_top_p" style="width:100%"></div>
+      <div><div class="label">top_k</div><input type="number" step="1" min="0" id="g_top_k" style="width:100%"></div>
+      <div><div class="label">min_p</div><input type="number" step="0.01" min="0" max="1" id="g_min_p" style="width:100%"></div>
+      <div><div class="label">max_tokens <span class="muted">(blank = model default)</span></div><input type="number" step="1" min="0" id="g_max_tokens" style="width:100%"></div>
+      <div><div class="label">repeat_penalty</div><input type="number" step="0.01" min="0" id="g_repeat_penalty" style="width:100%"></div>
+      <div><div class="label">presence_penalty</div><input type="number" step="0.1" id="g_presence_penalty" style="width:100%"></div>
+      <div><div class="label">frequency_penalty</div><input type="number" step="0.1" id="g_frequency_penalty" style="width:100%"></div>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label class="muted" style="font-size:13px"><input type="checkbox" id="g_apply_system"> inject a default system prompt when the client sends none</label>
+      <textarea id="g_system_prompt" rows="2" placeholder="You are a concise, helpful assistant…" style="width:100%;margin-top:6px;background:var(--panel2);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:8px;font:inherit"></textarea>
+    </div>
+    <div class="row" style="justify-content:space-between">
+      <label class="muted" style="font-size:13px"><input type="checkbox" id="g_override_client"> override values the client sets (force these on every request)</label>
+      <button class="primary sm" id="saveGen">Save operating settings</button>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <h2>Server log <span class="muted" style="text-transform:none;font-weight:400">— live tail of ~/server.log (local model only)</span></h2>
+  <pre class="log" id="log">…</pre>
+
+  <div class="foot">
+    Panel edits <code>~/serve-vlm.sh</code> knobs live. VRAM estimates are a linear fit of your GPU-measured presets — treat as a guide, watch the log for OOM.
+    Same model id <code>qwen3-vl</code> throughout, so no harness reconfig is ever needed.
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let CFG = null, COEF = null, LAST = null, LOADED_VERSION = null, MODELS = [];
+
+function key(){ return localStorage.getItem('llmPanelKey') || ''; }
+$('#apikey').value = key();
+$('#savekey').onclick = () => { localStorage.setItem('llmPanelKey', $('#apikey').value.trim()); toast('Key saved in this browser', 'ok'); };
+
+function toast(msg, kind){ const t=$('#toast'); t.textContent=msg; t.className='toast show '+(kind||''); clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',3200); }
+function fmtCtx(n){ return n>=1024 ? (n/1024).toFixed(n%1024?1:0)+'k' : n; }
+function estVram(ctx, kv){ const c=COEF[kv]||COEF.q4_0; return c[0]+c[1]*ctx/1000; }
+
+async function api(path, opts){
+  opts = opts||{};
+  opts.headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  if(key()) opts.headers['Authorization']='Bearer '+key();
+  const r = await fetch(path, opts);
+  let j={}; try{ j=await r.json(); }catch(e){}
+  return {status:r.status, j};
+}
+
+// ---------- load config ----------
+async function loadCfg(){
+  const r = await fetch('/presets.json'); CFG = await r.json();
+  COEF = CFG.estimator.coeffs_gb;
+  $('#gpuName').textContent = CFG.gpu.name.replace('NVIDIA GeForce ','');
+  $('#routerUrl').textContent = CFG.router_url || ':8001/v1';
+  $('#directUrl').textContent = ':'+CFG.server.vlm_port+'/v1';
+  LOADED_VERSION = CFG.version || LOADED_VERSION;
+  await refreshModels();
+  renderEndpoints(); renderPresets(); renderProfiles(); initCustom(); loadGen(); loadRuntime();
+  try{ const s=await (await fetch('/api/status')).json(); renderEngines(s); LAST_ENG=s.running_engine; LAST_AENG=s.active_engine; }catch(e){}
+}
+async function refreshModels(){
+  try{ const j=await (await fetch('/api/models')).json(); MODELS=j.models||[]; }catch(e){ MODELS=[]; }
+  return MODELS;
+}
+$('#reloadBtn').onclick=()=>location.reload(true);
+
+// ---------- endpoints (local + cloud) ----------
+function renderEndpoints(){
+  const g=$('#endpointGrid'); g.innerHTML='';
+  (CFG.endpoints||[]).forEach(e=>{
+    const active = CFG.active_endpoint===e.id;
+    const el=document.createElement('div'); el.className='preset'+(active?' live':''); el.dataset.ep=e.id;
+    const isLocal = e.type==='local';
+    const badge = isLocal ? '<span class="tag quality">local · GPU</span>'
+                 : (e.key_set ? '<span class="tag recommended">cloud · key ✓</span>'
+                              : '<span class="tag tight">cloud · no key</span>');
+    const sub = isLocal ? 'Qwen3.8-27B on your RTX 5080'
+                        : `${e.base_url||''}<br>model: <b>${e.model||'—'}</b>`;
+    el.innerHTML=`
+      <div class="star">${active?'● live':''}</div>
+      <div class="row cardhead" style="justify-content:space-between;align-items:flex-start"><span class="name" style="flex:1;min-width:0">${e.label||e.id}</span>${badge}</div>
+      <div class="note" style="min-height:40px">${sub}${e.vision?' · 👁 vision':''}</div>
+      <div class="pbtns">
+        <button class="primary sm" data-act ${(!isLocal && !e.key_set)?'disabled title="add a key first"':''}>${active?'Active':'Activate'}</button>
+        ${!isLocal?'<button class="ghost sm" data-check title="test reachability">test</button>':''}
+        ${!isLocal?'<button class="ghost sm" data-del title="remove">🗑</button>':''}
+      </div>`;
+    el.querySelector('[data-act]').onclick=()=>activateEndpoint(e);
+    if(!isLocal){
+      el.querySelector('[data-check]').onclick=async()=>{ toast('Testing '+e.id+'…');
+        const {j}=await api('/api/check',{method:'POST',body:JSON.stringify({endpoint:e.id})});
+        toast(e.id+': '+(j.ok?('reachable ('+(j.status||'ok')+')'):('unreachable — '+(j.error||j.note||j.status))), j.ok?'ok':'bad'); };
+      el.querySelector('[data-del]').onclick=async()=>{ if(!confirm('Remove endpoint '+e.id+'?'))return;
+        if(!key()){toast('Enter API key first','bad');return;}
+        await api('/api/endpoint',{method:'POST',body:JSON.stringify({op:'delete',id:e.id})}); await loadCfg(); toast('Removed','ok'); };
+    }
+    g.appendChild(el);
+  });
+}
+async function activateEndpoint(e){
+  if(!key()){ toast('Enter the API key first (top-right)','bad'); return; }
+  if(e.type==='remote'){
+    if(!confirm(`Route all tools to CLOUD endpoint:\n${e.label} (${e.model})\n\nRequests will leave this machine and use your ${e.id} API key/credits.\nThe local GPU model keeps running unless you stop it.\n\nProceed?`)) return;
+  } else {
+    if(!confirm('Route all tools to the LOCAL model (llama.cpp on your GPU)?')) return;
+  }
+  const {status,j}=await api('/api/activate',{method:'POST',body:JSON.stringify({endpoint:e.id})});
+  if(status===200||status===202){ CFG.active_endpoint=e.id; renderEndpoints();
+    toast('Active → '+(e.label||e.id)+(j.started?(' (starting '+j.started+')'):''),'ok'); }
+  else toast(j.hint||j.error||'failed','bad');
+}
+$('#copyRouter').onclick=()=>{ navigator.clipboard?.writeText($('#routerUrl').textContent); toast('Router URL copied','ok'); };
+$('#addEpBtn').onclick=()=>{ const f=$('#addEpForm'); f.style.display=f.style.display==='none'?'block':'none'; };
+$('#cancelEp').onclick=()=>{ $('#addEpForm').style.display='none'; };
+$('#saveEp').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  const b={id:$('#epId').value.trim(),label:$('#epLabel').value.trim(),base_url:$('#epBase').value.trim(),
+    model:$('#epModel').value.trim(),api_key:$('#epKey').value,vision:$('#epVision').checked};
+  if(!b.id||!b.base_url){ toast('id and base_url are required','bad'); return; }
+  const {status,j}=await api('/api/endpoint',{method:'POST',body:JSON.stringify(b)});
+  if(status===200){ $('#addEpForm').style.display='none'; ['epId','epLabel','epBase','epModel','epKey'].forEach(i=>$('#'+i).value=''); await loadCfg(); toast('Endpoint saved','ok'); }
+  else toast(j.error||'failed','bad');
+};
+
+// ---------- operating settings ----------
+const GEN_KEYS=['temperature','top_p','top_k','min_p','max_tokens','repeat_penalty','presence_penalty','frequency_penalty'];
+function loadGen(){
+  const g=CFG.gen_defaults||{};
+  GEN_KEYS.forEach(k=>{ const el=$('#g_'+k); if(el){ el.value=(g[k]==null)?'':g[k]; el.placeholder=(k==='max_tokens')?'model default':'server default (Unsloth)'; } });
+  $('#g_system_prompt').value = g.system_prompt||'';
+  $('#g_apply_system').checked = !!g.apply_system;
+  $('#g_override_client').checked = !!g.override_client;
+}
+$('#saveGen').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  const body={};
+  GEN_KEYS.forEach(k=>{ const v=$('#g_'+k).value.trim(); body[k]= v===''? null : Number(v); });
+  body.system_prompt=$('#g_system_prompt').value;
+  body.apply_system=$('#g_apply_system').checked;
+  body.override_client=$('#g_override_client').checked;
+  const {status,j}=await api('/api/gen',{method:'POST',body:JSON.stringify(body)});
+  if(status===200){ CFG.gen_defaults=j.gen_defaults; toast('Operating settings saved','ok'); }
+  else toast(j.error||'failed','bad');
+};
+
+// ---------- inference engine ----------
+let ESTAT=null, LAST_ENG=undefined, LAST_AENG=undefined;
+function renderEngines(s){
+  ESTAT = s.engines_status||ESTAT||{};
+  const g=$('#engineGrid'); if(!g) return; g.innerHTML='';
+  const specs=CFG.engines||{};
+  ['llamacpp','vllm','ollama'].forEach(id=>{
+    const spec=specs[id]||{}, st=(ESTAT[id]||{});
+    const installed=st.installed, running=(s.running_engine===id);
+    const el=document.createElement('div'); el.className='preset'+(running?' live':''); el.dataset.engine=id;
+    const badge = !installed ? '<span class="tag tight">not installed</span>'
+                : running ? '<span class="tag recommended">running</span>'
+                : '<span class="tag quality">installed</span>';
+    el.innerHTML=`
+      <div class="star">${running?'● live':''}</div>
+      <div class="row cardhead" style="justify-content:space-between;align-items:flex-start"><span class="name" style="flex:1;min-width:0">${spec.label||id}</span>${badge}</div>
+      <div class="note" style="min-height:54px;font-size:11.5px">${spec.formats||''}<br><span class="muted">${spec.note||''}</span></div>
+      <div class="specs"><div><div class="label">port</div><b>${st.port||'—'}</b></div><div><div class="label">good for</div><b style="font-weight:500;font-size:11px">${spec.good_for||''}</b></div></div>
+      <div class="pbtns">
+        ${installed?`<button class="primary sm" data-eng ${running?'disabled':''}>${running?'Running':'Activate'}</button>`
+                   :`<button class="ghost sm" data-install>Show install command</button>`}
+        ${id!=='llamacpp'?`<button class="ghost sm" data-opts>⚙ Options</button>`:''}
+      </div>`;
+    if(installed){ const b=el.querySelector('[data-eng]'); if(b&&!running) b.onclick=()=>activateEngine(id,spec); }
+    else el.querySelector('[data-install]').onclick=()=>{ prompt('Install '+id+' by running:', spec.install||''); };
+    const ob=el.querySelector('[data-opts]'); if(ob) ob.onclick=()=>openEngineOpts(id);
+    g.appendChild(el);
+  });
+}
+async function activateEngine(id,spec){
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  if(!confirm(`Switch inference engine to ${spec.label||id}?\n\nStops the current engine, frees the GPU, then starts ${id}. ~30–90s downtime.`)) return;
+  const {status,j}=await api('/api/engine',{method:'POST',body:JSON.stringify({engine:id})});
+  if(status===202) toast('Switching engine → '+id+'…','ok');
+  else if(j.error==='not_installed') prompt(id+' is not installed. Install with:', j.install||'');
+  else toast(j.error||j.hint||'failed','bad');
+}
+
+// ---------- per-engine options (vLLM / Ollama) ----------
+const OPT_SPECS = {
+  vllm: [
+    {k:'model', t:'text', label:'model (HF id)', ph:'Qwen/Qwen2.5-VL-7B-Instruct-AWQ'},
+    {k:'max_model_len', t:'number', label:'max_model_len (context)', ph:'16384'},
+    {k:'gpu_util', t:'number', step:'0.05', label:'gpu_memory_utilization', ph:'0.90'},
+    {k:'quantization', t:'select', label:'quantization', opts:['awq_marlin','gptq_marlin','fp8','']},
+    {k:'kv_cache_dtype', t:'select', label:'kv_cache_dtype', opts:['auto','fp8']},
+    {k:'max_num_seqs', t:'number', label:'max_num_seqs (concurrency)', ph:'16'},
+    {k:'enable_prefix_caching', t:'select', label:'prefix caching', opts:['on','off']},
+    {k:'reasoning_parser', t:'text', label:'reasoning_parser (thinking split)', ph:'qwen3 / deepseek_r1 / blank'}
+  ],
+  ollama: [
+    {k:'model', t:'text', label:'model tag', ph:'hf.co/unsloth/Qwen3-VL-8B-Instruct-GGUF:UD-Q4_K_XL'},
+    {k:'num_ctx', t:'number', label:'num_ctx (context)', ph:'32768'},
+    {k:'keep_alive', t:'text', label:'keep_alive', ph:'5m / 0 / -1'}
+  ]
+};
+let OPT_ENGINE=null;
+function openEngineOpts(id){
+  OPT_ENGINE=id;
+  const spec=(CFG.engines||{})[id]||{};
+  $('#engineOptsTitle').textContent=(spec.label||id)+' — options';
+  const body=$('#engineOptsBody'); body.innerHTML='';
+  (OPT_SPECS[id]||[]).forEach(f=>{
+    const cur=spec[f.k];
+    let inp;
+    if(f.t==='select'){
+      inp=`<select id="eo_${f.k}" style="width:100%">`+f.opts.map(o=>`<option value="${o}" ${String(cur||'')===String(o)?'selected':''}>${o===''?'(none)':o}</option>`).join('')+`</select>`;
+    } else {
+      inp=`<input id="eo_${f.k}" type="${f.t}" ${f.step?`step="${f.step}"`:''} value="${cur==null?'':cur}" placeholder="${f.ph||''}" style="width:100%">`;
+    }
+    const d=document.createElement('div'); d.innerHTML=`<div class="label">${f.label}</div>${inp}`; body.appendChild(d);
+  });
+  $('#engineOptsNote').textContent = id==='vllm'
+    ? 'Used by ~/serve-vllm.sh when you activate vLLM. Model must be GPU-native (AWQ/FP8/GPTQ) and fit 16 GB — NOT a GGUF IQ-quant.'
+    : 'Ollama loads the model on first request; pull it first: ollama pull <model tag>.';
+  const c=$('#engineOpts'); c.style.display='block'; c.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+$('#engineOptsClose').onclick=()=>{ $('#engineOpts').style.display='none'; };
+$('#engineOptsSave').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  if(!OPT_ENGINE) return;
+  const body={engine:OPT_ENGINE};
+  (OPT_SPECS[OPT_ENGINE]||[]).forEach(f=>{ const el=$('#eo_'+f.k); if(!el) return;
+    let v=el.value; if(f.t==='number') v=(v===''?null:Number(v)); body[f.k]=v; });
+  const {status,j}=await api('/api/engine-config',{method:'POST',body:JSON.stringify(body)});
+  if(status===200){ CFG.engines[OPT_ENGINE]=j.engine; toast(OPT_ENGINE+' options saved','ok'); }
+  else toast(j.error||'failed','bad');
+};
+
+// ---------- runtime: thinking / context handling ----------
+function loadRuntime(){
+  const rt=CFG.runtime||{}, set=(id,v)=>{ const el=$(id); if(el) el.value=(v===null||v===undefined)?'':v; };
+  set('#rt_thinking', rt.thinking||'auto'); set('#rt_reason_effort', rt.reason_effort||'');
+  set('#rt_context_shift', rt.context_shift||'off'); set('#rt_cache_reuse', rt.cache_reuse);
+  set('#rt_image_min_tokens', rt.image_min_tokens); set('#rt_extra_flags', rt.extra_flags||'');
+  const ph=(id,v)=>{ const el=$(id); if(el) el.placeholder=v; };
+  ph('#rt_cache_reuse','256 (default)'); ph('#rt_image_min_tokens','1024 (default)');
+  const c=CFG.compaction||{};
+  $('#compactionNote').innerHTML = c.trigger_pct? `<b>Compaction</b> is harness-side: ${c.strategy}, trigger ~${Math.round(c.trigger_pct*100)}% of slot context, reserve ${c.reserve_tokens} tok. llama.cpp does NOT auto-compact — with context-shift off it errors when full.`:'';
+}
+async function saveRuntime(apply){
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  const num=id=>{ const v=$(id).value.trim(); return v===''?null:Number(v); };
+  if(apply && !confirm('Save and RESTART the local model now?\n~30–60s downtime; in-flight requests dropped.')) return;
+  const body={ thinking:$('#rt_thinking').value, reason_effort:$('#rt_reason_effort').value||null,
+    context_shift:$('#rt_context_shift').value, cache_reuse:num('#rt_cache_reuse'),
+    image_min_tokens:num('#rt_image_min_tokens'), extra_flags:$('#rt_extra_flags').value.trim(), apply:!!apply };
+  const {status,j}=await api('/api/runtime',{method:'POST',body:JSON.stringify(body)});
+  if(status===200){ CFG.runtime=j.runtime; toast(apply?(j.applied?'Saved — restarting model…':'Saved (no running model to restart)'):'Saved — applies on next restart','ok'); }
+  else toast(j.error||'failed','bad');
+}
+$('#saveRt').onclick=()=>saveRuntime(false);
+$('#saveRtApply').onclick=()=>saveRuntime(true);
+
+function presetById(id){ return CFG.presets.find(p=>p.id===id); }
+
+function barClass(gb){ const cap=CFG.estimator.cap_gb, warn=CFG.estimator.warn_gb;
+  return gb>cap?'bad':(gb>warn?'warn':''); }
+
+function renderPresets(){
+  const g = $('#presetGrid'); g.innerHTML='';
+  const total = CFG.gpu.vram_total_gb;
+  CFG.presets.forEach(p=>{
+    const gb = p.vram_gb ?? estVram(p.ctx,p.kv);
+    const pct = Math.min(100, gb/total*100);
+    const el = document.createElement('div');
+    el.className='preset'; el.dataset.id=p.id;
+    el.innerHTML = `
+      <div class="star" data-star></div>
+      <div class="row cardhead" style="justify-content:space-between">
+        <span class="name">${p.id}</span>
+        ${p.tag?`<span class="tag ${p.tag}">${p.tag}</span>`:''}
+      </div>
+      <div class="note">${p.note||''}</div>
+      <div class="specs">
+        <div><div class="label">KV</div><b>${p.kv}</b></div>
+        <div><div class="label">Context</div><b>${fmtCtx(p.ctx)}</b></div>
+        <div><div class="label">Parallel</div><b>${p.parallel||1}</b></div>
+        <div><div class="label">~VRAM</div><b>${gb.toFixed(1)} GB</b></div>
+      </div>
+      <div class="minibar ${barClass(gb)}"><span style="width:${pct}%"></span></div>
+      <div class="pbtns">
+        <button class="primary sm" data-apply>Apply</button>
+        <button class="ghost sm" data-edit title="Edit this preset's settings">✏️</button>
+        <button class="ghost sm" data-mkdef title="Set as ⭐ Default profile">⭐</button>
+        <button class="ghost sm" data-mktest title="Set as 🧪 Testing profile">🧪</button>
+      </div>`;
+    el.querySelector('[data-apply]').onclick=()=>apply({preset:p.id}, p.id, gb);
+    el.querySelector('[data-edit]').onclick=()=>openPresetEditor(p);
+    el.querySelector('[data-mkdef]').onclick=()=>setProfile('default',p.id);
+    el.querySelector('[data-mktest]').onclick=()=>setProfile('testing',p.id);
+    g.appendChild(el);
+  });
+  paintStars();
+}
+
+function paintStars(){
+  const pr = CFG.profiles||{};
+  document.querySelectorAll('#presetGrid .preset').forEach(el=>{   // preset cards only
+    const star = el.querySelector('[data-star]'); if(!star) return;
+    const id = el.dataset.id; let s='';
+    if(pr.default===id) s+='⭐'; if(pr.testing===id) s+='🧪';
+    star.textContent=s;
+  });
+}
+
+function renderProfiles(){
+  ['Default','Testing'].forEach(slot=>{
+    const sel=$('#sel'+slot); sel.innerHTML='';
+    CFG.presets.forEach(p=>{ const o=document.createElement('option'); o.value=p.id;
+      o.textContent=`${p.id}  ·  ${p.kv} · ${fmtCtx(p.ctx)} · ~${(p.vram_gb??estVram(p.ctx,p.kv)).toFixed(1)}GB`;
+      sel.appendChild(o); });
+    sel.value = CFG.profiles[slot.toLowerCase()] || CFG.presets[0].id;
+    sel.onchange = ()=>{ setProfile(slot.toLowerCase(), sel.value); };
+  });
+  updProfMeta();
+}
+function updProfMeta(){
+  const d=presetById($('#selDefault').value), t=presetById($('#selTesting').value);
+  if(d)$('#defMeta').textContent=`${d.kv} · ${fmtCtx(d.ctx)} ctx · ~${(d.vram_gb??estVram(d.ctx,d.kv)).toFixed(1)} GB · ${d.note||''}`;
+  if(t)$('#testMeta').textContent=`${t.kv} · ${fmtCtx(t.ctx)} ctx · ~${(t.vram_gb??estVram(t.ctx,t.kv)).toFixed(1)} GB · ${t.note||''}`;
+}
+
+$('#applyDefault').onclick=()=>{ const id=$('#selDefault').value,p=presetById(id); apply({preset:id},id,p.vram_gb??estVram(p.ctx,p.kv)); };
+$('#applyTesting').onclick=()=>{ const id=$('#selTesting').value,p=presetById(id); apply({preset:id},id,p.vram_gb??estVram(p.ctx,p.kv)); };
+
+async function setProfile(slot,preset){
+  if(!key()){ toast('Enter the API key first (top-right)','bad'); return; }
+  const {status,j}=await api('/api/profile',{method:'POST',body:JSON.stringify({slot,preset})});
+  if(status===200){ CFG.profiles=j.profiles; $('#sel'+slot[0].toUpperCase()+slot.slice(1)).value=preset; paintStars(); updProfMeta(); toast(`${slot==='default'?'⭐ Default':'🧪 Testing'} → ${preset}`,'ok'); }
+  else toast(j.error||'failed','bad');
+}
+
+// ---------- preset editor ----------
+let PE_MODE='edit';
+function populatePeModel(current){
+  const sel=$('#pe_model'); if(!sel) return; sel.innerHTML='';
+  const list = MODELS.length ? MODELS
+    : Object.keys(CFG.models||{}).map(id=>({id, config_id:id, label:(CFG.models[id]||{}).label||id, vision:(CFG.models[id]||{}).vision, configured:true, dir:(CFG.models[id]||{}).dir}));
+  list.forEach(m=>{
+    const val=m.config_id||m.id, o=document.createElement('option');
+    o.value=val; o.dataset.dir=m.dir||''; o.dataset.new=(m.configured?'':'1');
+    o.textContent=(m.label||m.id)+(m.vision?' 👁':'')+(m.size_gb?` · ${m.size_gb}GB`:'')+(m.configured?'':' (new — will register)');
+    sel.appendChild(o);
+  });
+  if(current) sel.value=current;
+  if(!sel.value && sel.options.length) sel.selectedIndex=0;
+}
+function openPresetEditor(p){
+  PE_MODE = p ? 'edit' : 'new';
+  p = p || {id:'', kv:'q4_0', ctx:98304, parallel:1, ngl:99};
+  $('#presetEditorTitle').textContent = PE_MODE==='new' ? 'New preset' : ('Edit preset · '+p.id);
+  const set=(id,v)=>{ const el=$(id); if(el) el.value=(v==null?'':v); };
+  set('#pe_id',p.id); $('#pe_id').readOnly = (PE_MODE==='edit');
+  populatePeModel(p.model||'qwen3-vl');
+  set('#pe_kv',p.kv||'q4_0'); set('#pe_ctx',p.ctx); set('#pe_parallel',p.parallel||1); set('#pe_ngl',p.ngl||99);
+  set('#pe_thinking',p.thinking||''); set('#pe_reason_effort',p.reason_effort||''); set('#pe_context_shift',p.context_shift||'');
+  set('#pe_cache_reuse',p.cache_reuse); set('#pe_image_min_tokens',p.image_min_tokens);
+  set('#pe_tag',p.tag||''); set('#pe_note',p.note||'');
+  $('#pe_delete').style.display = (PE_MODE==='edit') ? 'inline-block' : 'none';
+  updatePeEst();
+  const c=$('#presetEditor'); c.style.display='block'; c.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function updatePeEst(){
+  const ctx=+$('#pe_ctx').value||0, kv=$('#pe_kv').value, gb=estVram(ctx,kv);
+  const tag = gb>CFG.estimator.cap_gb?'⚠ over budget':gb>CFG.estimator.warn_gb?'tight':'ok';
+  $('#pe_est').textContent = `~VRAM at load: ${gb.toFixed(2)} GB (${tag})`;
+}
+$('#pe_ctx').oninput=updatePeEst; $('#pe_kv').onchange=updatePeEst;
+$('#newPresetBtn').onclick=()=>openPresetEditor(null);
+$('#presetEditorClose').onclick=()=>{ $('#presetEditor').style.display='none'; };
+$('#pe_save').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first (top-right)','bad'); return; }
+  const id=$('#pe_id').value.trim(); if(!id){ toast('id is required','bad'); return; }
+  const num=i=>{ const v=$(i).value.trim(); return v===''?null:Number(v); };
+  const msel=$('#pe_model'), mopt=(msel&&msel.options[msel.selectedIndex])||{dataset:{}};
+  const model = (msel&&msel.value) || 'qwen3-vl';
+  if(mopt.dataset && mopt.dataset.new==='1' && mopt.dataset.dir){   // register a freshly-downloaded model on first use
+    await api('/api/models',{method:'POST',body:JSON.stringify({op:'add',id:model,dir:mopt.dataset.dir,vision:false,label:model})});
+    await refreshModels();
+  }
+  const body={ op:'upsert', id, model, kv:$('#pe_kv').value,
+    ctx:num('#pe_ctx'), parallel:num('#pe_parallel'), ngl:num('#pe_ngl'),
+    thinking:$('#pe_thinking').value, reason_effort:$('#pe_reason_effort').value, context_shift:$('#pe_context_shift').value,
+    cache_reuse:num('#pe_cache_reuse'), image_min_tokens:num('#pe_image_min_tokens'),
+    tag:$('#pe_tag').value.trim(), note:$('#pe_note').value.trim() };
+  const {status,j}=await api('/api/preset',{method:'POST',body:JSON.stringify(body)});
+  if(status===200){ $('#presetEditor').style.display='none'; await loadCfg(); toast('Preset "'+id+'" saved','ok'); }
+  else toast(j.error||'failed','bad');
+};
+$('#pe_delete').onclick=async()=>{
+  const id=$('#pe_id').value.trim();
+  if(!confirm('Delete preset "'+id+'"? This cannot be undone.')) return;
+  const {status,j}=await api('/api/preset',{method:'POST',body:JSON.stringify({op:'delete',id})});
+  if(status===200){ $('#presetEditor').style.display='none'; await loadCfg(); toast('Deleted "'+id+'"','ok'); }
+  else toast(j.error||'failed','bad');
+};
+
+// ---------- custom builder ----------
+function initCustom(){
+  const r=$('#ctxRange');
+  r.max = Math.round(CFG.gpu.vram_total_gb*0)  // placeholder, set below
+  r.max = 200704; // ~196k, sane upper bound for this box
+  const upd=()=>{
+    const ctx=+r.value, kv=$('#kvSel').value, par=+$('#parSel').value;
+    $('#ctxVal').textContent=ctx.toLocaleString();
+    $('#ctxPer').textContent = par>1?`(${fmtCtx(Math.floor(ctx/par))}/slot × ${par})`:'';
+    const gb=estVram(ctx,kv), total=CFG.gpu.vram_total_gb;
+    $('#estVal').textContent=gb.toFixed(2)+' GB';
+    $('#estOf').textContent='of '+total.toFixed(1)+' GB';
+    const bar=$('#estBar'); bar.className='minibar '+barClass(gb);
+    bar.firstElementChild.style.width=Math.min(100,gb/total*100)+'%';
+    $('#estNote').textContent = gb>CFG.estimator.cap_gb ? '⚠ over budget — likely OOM at load'
+      : gb>CFG.estimator.warn_gb ? '⚠ tight — little headroom for big images' : '✓ comfortable headroom';
+    $('#perSlot').textContent = par>1?`Each of ${par} slots gets ~${fmtCtx(Math.floor(ctx/par))} tokens of context.`:'Single big-context slot.';
+    $('#kvHint').textContent = kv==='q4_0' ? 'q4_0: K-cache tolerates 4-bit well; V-cache a little lossier. Fine for most work.'
+      : kv==='q8_0' ? 'q8_0: ~half the memory of f16, <0.1% quality loss. Great default for quality.'
+      : 'f16: full precision KV, 2× memory. Rarely needed on 16 GB.';
+  };
+  r.oninput=upd; $('#kvSel').onchange=upd; $('#parSel').oninput=upd; upd();
+}
+$('#applyCustom').onclick=()=>{
+  const ctx=+$('#ctxRange').value, kv=$('#kvSel').value, par=+$('#parSel').value;
+  apply({custom:{ctx,kv,parallel:par,model:'qwen3-vl'}}, `custom ${kv} ${fmtCtx(ctx)}`, estVram(ctx,kv));
+};
+
+// ---------- apply / stop ----------
+async function apply(payload, label, gb){
+  if(!key()){ toast('Enter the API key first (top-right) to apply changes','bad'); return; }
+  const over = gb>CFG.estimator.cap_gb;
+  const warn = over ? `\n\n⚠ Estimated ${gb.toFixed(1)} GB EXCEEDS the ~${CFG.estimator.cap_gb} GB budget — this may fail to load (OOM).` : '';
+  if(!confirm(`Switch the live server to:  ${label}\n(~${gb.toFixed(1)} GB VRAM)`
+      +`\n\nThis STOPS the running model for ~30–60s. Any in-flight request will be dropped.${warn}\n\nProceed?`)) return;
+  let body = Object.assign({}, payload); if(over) body.force=true;
+  const {status,j}=await api('/api/switch',{method:'POST',body:JSON.stringify(body)});
+  if(status===202){ toast(`Switching → ${label}…`,'ok'); }
+  else if(status===401){ toast('Unauthorized — check the API key','bad'); }
+  else if(status===409 && j.error==='over_vram_budget'){
+    if(confirm(`Estimated ${j.est_gb} GB is over the ${j.cap_gb} GB budget. Try anyway?`)){
+      body.force=true; const r2=await api('/api/switch',{method:'POST',body:JSON.stringify(body)});
+      if(r2.status===202) toast('Switching (forced)…','ok'); else toast(r2.j.error||'failed','bad');
+    }
+  } else toast(j.error||j.message||'failed','bad');
+}
+$('#btnStop').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  if(!confirm('Stop the llama.cpp server and free the GPU?\nThe model will be OFFLINE until you apply a preset again.')) return;
+  const {status,j}=await api('/api/stop',{method:'POST'});
+  toast(status===200?'Server stopped':(j.error||'failed'), status===200?'ok':'bad');
+};
+
+// ---------- status polling ----------
+function setBar(el, big, l, r, used, total){
+  const pct=total?Math.min(100,used/total*100):0;
+  el.className='bar '+(pct>96?'bad':pct>90?'warn':'');
+  el.firstElementChild.style.width=pct+'%';
+}
+async function poll(){
+  try{
+    const r=await fetch('/api/status'); const s=await r.json(); LAST=s;
+    // vram
+    const g=s.gpu||{}; const total=s.vram_total_gb;
+    if(g.total_mib){
+      const usedGb=g.used_mib/1024, totGb=g.total_mib/1024, freeGb=g.free_mib/1024;
+      $('#vramBig').textContent=usedGb.toFixed(1)+' / '+totGb.toFixed(1)+' GB';
+      const bar=$('#vramBar'); const pct=g.used_mib/g.total_mib*100;
+      bar.className='bar '+(pct>96?'bad':pct>90?'warn':'');
+      bar.firstElementChild.style.width=pct+'%';
+      $('#vramL').textContent='used '+usedGb.toFixed(1)+' GB';
+      $('#vramR').innerHTML=freeGb.toFixed(1)+' GB free · '+(g.util_pct??'—')+'% · '+(g.temp_c??'—')+'°C';
+    }
+    // running
+    const run=s.running;
+    const dot=$('#hdot');
+    if(run){
+      $('#curModel').textContent = (run.alias||run.model_file||'qwen3-vl') + (s.matched_preset?`  ·  ${s.matched_preset}`:'');
+      $('#curKv').innerHTML =
+        kvItem('Engine',run.engine||'—')+kvItem('KV',run.kv||'—')+kvItem('Context',run.ctx?run.ctx.toLocaleString():'—')+
+        kvItem('Parallel',run.parallel??'—')+kvItem('Thinking',run.thinking||'—')+kvItem('Ctx-shift',run.context_shift||'—')+
+        kvItem('~VRAM',run.vram_gb_est?run.vram_gb_est.toFixed(1)+' GB':'—')+kvItem('PID',run.pid??'—');
+    } else {
+      $('#curModel').textContent='(server offline)'; $('#curKv').innerHTML='';
+    }
+    // health
+    const h=s.health; const ch=$('#chHealth'); ch.className='chip on health '+h;
+    ch.textContent = 'health: '+h;
+    dot.style.background = h==='ready'?'var(--ok)':h==='loading'?'var(--warn)':'var(--bad)';
+    $('#hsub').textContent = `${CFG?CFG.gpu.name.replace('NVIDIA GeForce ',''):'RTX 5080'} · ${s.running_engine||'—'} · ${h}`;
+    $('#chTps').textContent = (s.tps!=null? s.tps.toFixed(1):'—')+' t/s';
+    // active endpoint + engine
+    if(CFG){
+      const ae=(CFG.endpoints||[]).find(e=>e.id===s.active_endpoint);
+      $('#activeEp').textContent = ae?(ae.label||ae.id):(s.active_endpoint||'—');
+      if(CFG.active_endpoint!==s.active_endpoint){ CFG.active_endpoint=s.active_endpoint; renderEndpoints(); }
+      if(LAST_ENG!==s.running_engine || LAST_AENG!==s.active_engine){ renderEngines(s); LAST_ENG=s.running_engine; LAST_AENG=s.active_engine; }
+    }
+    // switch banner
+    const sw=s.switch||{}; const b=$('#switchBanner');
+    if(['stopping','starting'].includes(sw.phase)){ b.className='banner show'; $('#switchMsg').textContent=`Switching to ${sw.target||''} — ${sw.detail||''}`; }
+    else if(sw.phase==='error'){ b.className='banner show'; b.style.borderColor='var(--bad)'; $('#switchMsg').textContent='Switch failed: '+(sw.detail||''); }
+    else b.className='banner';
+    // panel updated on server -> show reload banner
+    if(LOADED_VERSION && s.version && s.version!==LOADED_VERSION) $('#refreshBanner').classList.add('show');
+  }catch(e){ $('#hsub').textContent='panel unreachable'; }
+}
+function kvItem(l,v){ return `<div><div class="label">${l}</div><b>${v}</b></div>`; }
+
+async function pollLog(){
+  try{ const r=await fetch('/api/log?n=40'); const j=await r.json();
+    const el=$('#log'); const atBottom = el.scrollTop+el.clientHeight >= el.scrollHeight-30;
+    el.textContent=(j.lines||[]).join('\n')||'(log empty)';
+    if(atBottom) el.scrollTop=el.scrollHeight;
+  }catch(e){}
+}
+
+(async function(){ await loadCfg(); poll(); pollLog(); setInterval(poll,2000); setInterval(pollLog,2500); })();
+</script>
+</body>
+</html>

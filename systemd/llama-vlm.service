@@ -1,0 +1,19 @@
+[Unit]
+Description=llama.cpp Qwen3.8-27B vision-LM server (OpenAI API on :8000)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=liuyang
+Group=liuyang
+Environment=HOME=/home/liuyang
+WorkingDirectory=/home/liuyang/llm-stack
+ExecStart=/home/liuyang/llm-stack/serve/serve-vlm.sh
+Restart=on-failure
+RestartSec=5
+# model load + first-run can take a while; don't let systemd time it out
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

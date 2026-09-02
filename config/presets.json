@@ -1,0 +1,301 @@
+{
+  "_comment": "Config for the LLM control panel + router. Edit freely, then reload the web page (panel picks up changes live, except the 'server' block which needs a panel restart). Remote API keys do NOT live here \u2014 they go in secrets.json (chmod 600), referenced by 'key_ref'.",
+  "server": {
+    "host": "0.0.0.0",
+    "panel_port": 8080,
+    "router_port": 8001,
+    "vlm_port": 8000,
+    "llama_bin": "~/llama.cpp/build/bin/llama-server",
+    "serve_script": "$ROOT/serve/serve-vlm.sh",
+    "server_log": "~/server.log",
+    "api_key_file": "~/.vlm_api_key",
+    "secrets_file": "$ROOT/config/secrets.json"
+  },
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 5080",
+    "vram_total_gb": 15.92,
+    "vram_total_mib": 16303
+  },
+  "estimator": {
+    "_comment": "VRAM_gb(ctx, kv) = base_gb + per_1k_gb * ctx/1000. Linear fit of your measured presets.",
+    "coeffs_gb": {
+      "f16": [
+        10.9,
+        0.0938
+      ],
+      "q8_0": [
+        10.9,
+        0.0469
+      ],
+      "q4_0": [
+        11.35,
+        0.0234
+      ]
+    },
+    "warn_gb": 15.3,
+    "cap_gb": 15.8
+  },
+  "models": {
+    "qwen3-vl": {
+      "label": "Qwen3.8-27B VLM (GGUF UD-IQ3_XXS)",
+      "dir": "~/models/Qwen3.8-27B",
+      "vision": true,
+      "note": "Local reasoning + vision model, served by llama.cpp as 'qwen3-vl'."
+    }
+  },
+  "presets": [
+    {
+      "id": "q8-64k",
+      "model": "qwen3-vl",
+      "kv": "q8_0",
+      "ctx": 65536,
+      "parallel": 1,
+      "ngl": 99,
+      "note": "Best KV quality, safe image headroom",
+      "tag": "quality"
+    },
+    {
+      "id": "q8-96k",
+      "model": "qwen3-vl",
+      "kv": "q8_0",
+      "ctx": 98304,
+      "parallel": 1,
+      "ngl": 99,
+      "note": "Best KV quality; TIGHT \u2014 can OOM on big images",
+      "tag": "tight"
+    },
+    {
+      "id": "q4-96k",
+      "model": "qwen3-vl",
+      "kv": "q4_0",
+      "ctx": 98304,
+      "parallel": 1,
+      "ngl": 99,
+      "note": "Full context + safe headroom",
+      "tag": "recommended"
+    },
+    {
+      "id": "q4-128k",
+      "model": "qwen3-vl",
+      "kv": "q4_0",
+      "ctx": 131072,
+      "parallel": 1,
+      "ngl": 99,
+      "note": "More context, still comfortable",
+      "tag": ""
+    },
+    {
+      "id": "q4-160k",
+      "model": "qwen3-vl",
+      "kv": "q4_0",
+      "ctx": 163840,
+      "parallel": 1,
+      "ngl": 99,
+      "note": "Most context; TIGHT",
+      "tag": "tight"
+    },
+    {
+      "id": "agent",
+      "model": "qwen3-vl",
+      "kv": "q4_0",
+      "ctx": 131072,
+      "parallel": 1,
+      "ngl": 99,
+      "thinking": "off",
+      "cache_reuse": 256,
+      "note": "128k, THINKING OFF \u2014 fast tool-calling agent loops (deepseek-harness)",
+      "tag": "agent"
+    },
+    {
+      "id": "deep",
+      "model": "qwen3-vl",
+      "kv": "q4_0",
+      "ctx": 98304,
+      "parallel": 1,
+      "ngl": 99,
+      "thinking": "on",
+      "reason_effort": "high",
+      "note": "96k, THINKING ON (high effort) \u2014 max reasoning quality, slower",
+      "tag": "quality"
+    },
+    {
+      "id": "vision",
+      "model": "qwen3-vl",
+      "kv": "q4_0",
+      "ctx": 65536,
+      "parallel": 1,
+      "ngl": 99,
+      "image_min_tokens": 1024,
+      "note": "64k + max image headroom, for heavy vision/grounding work",
+      "tag": "vision"
+    }
+  ],
+  "runtime": {
+    "_comment": "Global llama.cpp runtime knobs, passed as env to serve-vlm.sh. A preset can override any of these. Leave null/absent to use serve-vlm.sh's own default.",
+    "thinking": "off",
+    "context_shift": "off",
+    "cache_reuse": 256,
+    "reason_effort": null,
+    "image_min_tokens": 1024,
+    "image_max_tokens": null,
+    "batch": null,
+    "ubatch": null,
+    "_notes": {
+      "thinking": "on = always reason (best quality, burns output tokens) | off = never (fast, best for agent tool loops) | auto = chat template decides",
+      "context_shift": "off (RECOMMENDED for agents): server errors when full instead of silently dropping oldest tokens. on: keeps generating by discarding history \u2014 corrupts agent state.",
+      "cache_reuse": "min chunk size (tokens) to reuse from KV cache via shifting. 256 is a good default; big speedup for agent loops that compact/edit history. 0 disables.",
+      "image_min_tokens": "Qwen-VL needs >=1024 image tokens for accurate grounding. Higher = more detail, more VRAM/time."
+    }
+  },
+  "compaction": {
+    "_comment": "Guidance for the HARNESS (llama.cpp does not compact for you). With context_shift off, the server errors at the limit \u2014 the harness must summarize/compact before then.",
+    "strategy": "summarize",
+    "trigger_pct": 0.7,
+    "reserve_tokens": 30000,
+    "_notes": "Trigger compaction at ~70% of the slot's context (ctx/parallel). Reserve ~30k for reasoning output + the next tool result. Use summarization, NOT hard truncation \u2014 truncation drops the system prompt and early tool results. If parallel>1, each slot only gets ctx/parallel, so scale the trigger down."
+  },
+  "engines": {
+    "_comment": "Inference engines installed on this box. Only ONE can hold the GPU at a time (16GB).",
+    "llamacpp": {
+      "label": "llama.cpp",
+      "port": 8000,
+      "start": "bash ~/start-model.sh <preset>",
+      "formats": "GGUF incl. Unsloth dynamic UD-IQ3_XXS / IQ / K-quants",
+      "good_for": "Big quantized models on small VRAM, vision GGUF, single user",
+      "note": "The ONLY engine that runs your UD-IQ3_XXS + mmproj vision model."
+    },
+    "vllm": {
+      "label": "vLLM",
+      "port": 8000,
+      "serve_script": "$ROOT/serve/serve-vllm.sh",
+      "install": "bash ~/setup_vllm_optional.sh",
+      "formats": "BF16/FP16, FP8, AWQ/GPTQ 4-bit (NOT GGUF IQ-quants, no multimodal GGUF)",
+      "good_for": "High-throughput concurrent serving, multi-GPU",
+      "note": "Cannot run the current 27B UD-IQ3_XXS model. Needs a GPU-native model that fits 16GB, e.g. a 7B AWQ VLM.",
+      "model": "Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+      "max_model_len": 16384,
+      "gpu_util": 0.9,
+      "quantization": "awq_marlin",
+      "kv_cache_dtype": "auto",
+      "max_num_seqs": 16,
+      "enable_prefix_caching": "on",
+      "reasoning_parser": ""
+    },
+    "ollama": {
+      "label": "Ollama",
+      "port": 11434,
+      "install": "curl -fsSL https://ollama.com/install.sh | sh",
+      "start": "ollama pull hf.co/unsloth/Qwen3-VL-8B-Instruct-GGUF:UD-Q4_K_XL",
+      "formats": "GGUF (llama.cpp engine underneath)",
+      "good_for": "Simplest setup, auto model management",
+      "note": "Same engine as llama.cpp, port 11434, fewer exposed flags; bundles its own CUDA. Pull a model before activating.",
+      "model": "hf.co/unsloth/Qwen3-VL-8B-Instruct-GGUF:UD-Q4_K_XL",
+      "num_ctx": 32768,
+      "keep_alive": "5m"
+    }
+  },
+  "profiles": {
+    "default": "q8-96k",
+    "testing": "q8-64k"
+  },
+  "gen_defaults": {
+    "_comment": "Settings the ROUTER injects when a client OMITS them. NOTE: serve-vlm.sh already applies Unsloth's thinking-aware sampling at the SERVER level. Leave these null to let the server's profile win (recommended). Set a value only to force it for every client.",
+    "temperature": null,
+    "top_p": null,
+    "top_k": null,
+    "min_p": null,
+    "max_tokens": null,
+    "repeat_penalty": null,
+    "presence_penalty": null,
+    "frequency_penalty": null,
+    "system_prompt": "",
+    "apply_system": false,
+    "override_client": false
+  },
+  "sampling_reference": {
+    "_comment": "Unsloth's recommended Qwen3-VL sampling. serve-vlm.sh picks the matching set automatically from THINKING. Shown here for reference / manual override.",
+    "thinking": {
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 0.0,
+      "repeat_penalty": 1.0,
+      "note": "Some users prefer temp 0.6 to curb over-long thinking."
+    },
+    "non_thinking": {
+      "temperature": 0.7,
+      "top_p": 0.8,
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 1.5,
+      "repeat_penalty": 1.0
+    }
+  },
+  "active_endpoint": "local",
+  "active_engine": "llamacpp",
+  "router": {
+    "_comment": "Point any harness at http://<box>:8001/v1 with any model id \u2014 the router forwards to whichever endpoint is active and applies gen_defaults.",
+    "free_gpu_on_remote": false,
+    "request_timeout_s": 600
+  },
+  "endpoints": [
+    {
+      "id": "local",
+      "type": "local",
+      "label": "Local \u00b7 llama.cpp (Qwen3.8-27B VLM)",
+      "preset_from": "running",
+      "note": "Runs on this RTX 5080. Uses whatever local preset is applied above."
+    },
+    {
+      "id": "openai",
+      "type": "remote",
+      "label": "OpenAI",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4o",
+      "key_ref": "openai",
+      "vision": true,
+      "note": "Set key in secrets.json \u2192 \"openai\"."
+    },
+    {
+      "id": "openrouter",
+      "type": "remote",
+      "label": "OpenRouter (many models)",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-3.5-sonnet",
+      "key_ref": "openrouter",
+      "vision": true,
+      "note": "One key, hundreds of models. Set \"openrouter\" in secrets.json."
+    },
+    {
+      "id": "deepseek",
+      "type": "remote",
+      "label": "DeepSeek",
+      "base_url": "https://api.deepseek.com/v1",
+      "model": "deepseek-chat",
+      "key_ref": "deepseek",
+      "vision": false,
+      "note": "Cheap strong coder/chat. Set \"deepseek\"."
+    },
+    {
+      "id": "groq",
+      "type": "remote",
+      "label": "Groq (fast)",
+      "base_url": "https://api.groq.com/openai/v1",
+      "model": "llama-3.3-70b-versatile",
+      "key_ref": "groq",
+      "vision": false,
+      "note": "Very fast inference. Set \"groq\"."
+    },
+    {
+      "id": "together",
+      "type": "remote",
+      "label": "Together.ai",
+      "base_url": "https://api.together.xyz/v1",
+      "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "key_ref": "together",
+      "vision": false,
+      "note": "Set \"together\"."
+    }
+  ]
+}

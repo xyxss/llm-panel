@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# =============================================================================
+# llm — one command to drive the local + cloud LLM stack (panel, router, model).
+# All the ad-hoc curl/pkill/ss commands, wrapped as named subcommands.
+#
+#   llm status              show GPU / running model / engine / health (JSON)
+#   llm health              quick router health check
+#   llm models              list models discovered under ~/models
+#   llm presets             list configured presets
+#   llm switch <preset>     restart the local model into a preset (e.g. q8-96k)
+#   llm engine <name>       switch engine: llamacpp | vllm | ollama
+#   llm stop-model          stop the local model (free the GPU)
+#   llm logs [N]            tail the model server log (default 40 lines)
+#   llm panel start|stop|restart|status|logs
+#   llm install-service     install + enable the systemd unit (needs sudo)
+#   llm firewall            print the ufw commands to open the LAN ports
+#   llm url                 print the router URL to point harnesses at
+# =============================================================================
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PANEL_PORT="$(python3 -c "import json;print(json.load(open('$ROOT/config/presets.json'))['server'].get('panel_port',8080))" 2>/dev/null || echo 8080)"
+ROUTER_PORT="$(python3 -c "import json;print(json.load(open('$ROOT/config/presets.json'))['server'].get('router_port',8001))" 2>/dev/null || echo 8001)"
+KEY="$(cat "$HOME/.vlm_api_key" 2>/dev/null || true)"
+
+api(){ local m="$1" p="$2"; shift 2; curl -s -X "$m" "http://localhost:$PANEL_PORT$p" \
+        -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' "$@"; }
+pp(){ python3 -m json.tool 2>/dev/null || cat; }
+panel_pid(){ ss -tlnp 2>/dev/null | grep ":$PANEL_PORT " | grep -oP 'pid=\K[0-9]+' | head -1; }
+
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  status)        api GET /api/status | pp ;;
+  health)        curl -s "http://localhost:$ROUTER_PORT/health"; echo ;;
+  models)        api GET /api/models | pp ;;
+  presets)       curl -s "http://localhost:$PANEL_PORT/presets.json" | python3 -c "import sys,json;[print(p['id'],'\t',p['kv'],p['ctx'],'~%.1fGB'%p.get('vram_gb',0)) for p in json.load(sys.stdin)['presets']]" ;;
+  switch)        api POST /api/switch -d "{\"preset\":\"${1:?usage: llm switch <preset>}\"}" | pp ;;
+  engine)        api POST /api/engine -d "{\"engine\":\"${1:?usage: llm engine <llamacpp|vllm|ollama>}\"}" | pp ;;
+  stop-model)    api POST /api/stop | pp ;;
+  logs)          tail -n "${1:-40}" "$HOME/server.log" ;;
+  url)           curl -s "http://localhost:$PANEL_PORT/presets.json" | python3 -c "import sys,json;print(json.load(sys.stdin)['router_url'])" ;;
+  panel)
+    case "${1:-status}" in
+      start)   setsid nohup python3 "$ROOT/panel/panel.py" </dev/null >"$ROOT/logs/panel.log" 2>&1 & disown; echo "panel starting on :$PANEL_PORT (logs: $ROOT/logs/panel.log)" ;;
+      stop)    pid="$(panel_pid)"; [ -n "$pid" ] && { kill "$pid"; echo "stopped panel pid $pid"; } || echo "panel not running" ;;
+      restart) "$0" panel stop || true; sleep 2; "$0" panel start ;;
+      status)  pid="$(panel_pid)"; [ -n "$pid" ] && echo "panel running (pid $pid) on :$PANEL_PORT" || echo "panel NOT running" ;;
+      logs)    tail -n "${2:-40}" "$ROOT/logs/panel.log" ;;
+      *) echo "usage: llm panel start|stop|restart|status|logs" ;;
+    esac ;;
+  install-service)
+    sudo cp "$ROOT/systemd/llm-panel.service" /etc/systemd/system/ \
+      && sudo systemctl daemon-reload && sudo systemctl enable --now llm-panel \
+      && echo "installed + enabled llm-panel.service" ;;
+  firewall)
+    echo "sudo ufw allow from <your-subnet> to any port $PANEL_PORT proto tcp"
+    echo "sudo ufw allow from <your-subnet> to any port $ROUTER_PORT proto tcp"
+    echo "sudo ufw reload" ;;
+  help|*)
+    sed -n '3,25p' "$0" | sed 's/^# \{0,1\}//' ;;
+esac
