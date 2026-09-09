@@ -1,144 +1,274 @@
 # LLM Control Panel + Router
 
-A tiny, dependency-free (Python stdlib only) web console to operate your local
-llama.cpp model **and** cloud models from one page — and one stable endpoint your
-tools point at forever.
+A dependency-free (Python stdlib only) web console to operate a local llama.cpp
+model **and** cloud models from one page — behind one stable endpoint your tools
+point at forever.
 
 ```
 ┌─────────── your tools / harnesses ───────────┐
-│  point them all at the ROUTER, one time:      │
-│     http://<box>:8001/v1               │
-└───────────────────────┬───────────────────────┘
+│  point them all at the ROUTER, one time:     │
+│     http://<box>:8001/v1                     │
+└───────────────────────┬──────────────────────┘
                         │  (you flip the switch in the web UI)
         ┌───────────────┴───────────────┐
         ▼                               ▼
   LOCAL llama.cpp                  CLOUD provider
-  Qwen3.8-27B on the RTX 5080      OpenAI / OpenRouter / DeepSeek / Groq / …
-  (context + KV + parallel          (any OpenAI-compatible base URL + key)
-   preset, restarts the server)
+  a GGUF on your GPU               OpenAI / OpenRouter / DeepSeek / Groq / …
+  (model + context + KV preset,     (any OpenAI-compatible base URL + key,
+   restarts the server)              key stays server-side)
 ```
 
-## URLs
-| What | URL |
-|---|---|
-| **Web control panel** | http://<box>:8080  (or http://localhost:8080 on the box) |
-| **Router** (point harnesses here) | http://<box>:8001/v1 |
-| Legacy direct local model | http://<box>:8000/v1  (local model only, no switching) |
+One process (`panel/panel.py`) serves both:
 
-Auth for everything = the key in `~/.vlm_api_key`
-(`sk-YOUR-PANEL-KEY`). Enter it once, top-right of the
-panel (stored only in your browser). Harnesses send it as the usual
-`Authorization: Bearer <key>` / OpenAI API key.
+| port   | what                                                                      |
+| ------ | ------------------------------------------------------------------------- |
+| `8080` | the web panel                                                             |
+| `8001` | the OpenAI-compatible router — rewrites `model` and injects the upstream key |
 
-## What you can change in the UI
-- **Models & endpoints** — one click to route every tool to the local GPU model
-  or to a cloud provider. Add your own cloud/custom endpoint (base URL + model +
-  key) from the panel; keys are stored server-side in `secrets.json` (chmod 600),
-  never sent back to the browser.
-- **Local presets** — context window, KV-cache quant (f16 / q8_0 / q4_0),
-  parallel slots. Applying one **restarts the local llama.cpp server** with it.
-  Live **~VRAM estimate** (a linear fit of your own measured presets) with a
-  warning when a choice would exceed the 16 GB budget.
-- **Default vs Testing** — mark any preset as your ⭐ stable default or 🧪 testing
-  profile; one button applies it.
-- **Custom preset** — slider for context + KV + parallel with a live VRAM meter.
-- **Operating settings** — generation defaults (temperature, top_p, top_k, min_p,
-  max_tokens, repeat_penalty, presence/frequency penalty, optional system prompt).
-  The router applies them to whichever backend is active. By default they only
-  fill in values a client omits; flip "override client" to force them.
-- **Inference engine** — switch the local backend between **llama.cpp**, **vLLM**,
-  and **Ollama** (only one holds the 16 GB GPU at a time). Not-installed engines
-  show their install command. llama.cpp is the only one that runs your GGUF vision
-  model; vLLM (`~/serve-vllm.sh`) is for GPU-native AWQ/FP8 models.
-- **Thinking & context handling** (llama.cpp runtime) —
-  - **Thinking**: `on` (always reason) / `off` (never — fast tool-calling agents) /
-    `auto` (chat template decides), plus reasoning effort. Maps to
-    `--reasoning on|off|auto` + `--reasoning-effort`. serve-vlm.sh auto-applies
-    Unsloth's thinking-aware sampling (thinking: temp 1.0/top-p 0.95/presence 0;
-    non-thinking: temp 0.7/top-p 0.8/presence 1.5).
-  - **Context shift / compaction**: `off` = `--no-context-shift` (server errors
-    when full so your harness can compact — recommended for agents); `on` =
-    `--context-shift` (drops oldest tokens, corrupts agent state).
-  - **cache-reuse** (KV prefix reuse), **image-min-tokens** (Qwen-VL grounding ≥1024),
-    and an **extra-flags** passthrough. Save applies on next restart, or "Save &
-    restart now".
-- **Operating settings** — generation defaults (temperature, top_p, top_k, min_p,
-  max_tokens, repeat_penalty, presence/frequency penalty, optional system prompt).
-  The router applies them to whichever backend is active. By default they only
-  fill in values a client omits; flip "override client" to force them.
-- **Live status** — GPU VRAM / util / temp, current served config (engine,
-  thinking, context-shift), tokens/sec, and a live tail of `~/server.log`.
+---
 
-The preset list also includes task-shaped presets: `agent` (128k, thinking off),
-`deep` (thinking on, high effort), and `vision` (max image headroom). Settings
-follow Unsloth's Qwen3-VL guide, validated against your llama-server build.
+## Install
 
-## Run it
+Rootless. No sudo for the panel itself.
+
 ```bash
-# manual (foreground)
-python3 ~/llm-panel/panel.py
-
-# background
-setsid nohup python3 ~/llm-panel/panel.py </dev/null >~/llm-panel/panel.log 2>&1 &
+git clone <your-fork> ~/llm-stack
+cd ~/llm-stack
 ```
 
-### Autostart on boot (systemd)
+**1. Prerequisites.** Python 3.9+, and a built `llama-server` (path set in
+`config/presets.json` → `server.llama_bin`). For GPU monitoring, `nvidia-smi`.
+
+**2. Set the API key.** Every mutating call requires it; without it the panel is
+read-only.
+
 ```bash
-sudo cp ~/llm-panel/llm-panel.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now llm-panel.service
-systemctl status llm-panel        # check
-journalctl -u llm-panel -f        # logs
+head -c 24 /dev/urandom | xxd -p -c 24 | sed 's/^/sk-/' > ~/.vlm_api_key
+chmod 600 ~/.vlm_api_key
 ```
 
-### LAN access (open the two ports, like you did for :8000)
+**3. Point the config at your models.** Edit `config/presets.json`:
+
+- `models` — id → `{dir, label, vision}`. `dir` may use `~` or the `$ROOT` token.
+- `server.llama_bin`, `server.serve_script`, `server.server_log`
+- `estimator.coeffs_gb` — the VRAM fit for **your** GPU (see *VRAM estimates*)
+
+**4. Start it.**
+
 ```bash
-sudo ufw allow from <your-subnet> to any port 8080 proto tcp
-sudo ufw allow from <your-subnet> to any port 8001 proto tcp
-sudo ufw reload
+bin/llm panel start          # or: make start
+bin/llm panel status|logs|stop|restart
 ```
 
-## Add a cloud provider
-Either use the **“＋ Add endpoint”** form in the UI, or edit files:
-1. Put your key in `~/llm-panel/secrets.json` under the endpoint's `key_ref`
-   (e.g. `"openrouter": "sk-or-..."`).
-2. The endpoint is already listed in `presets.json` (OpenAI, OpenRouter, DeepSeek,
-   Groq, Together are seeded). Add more by copying one block and changing
-   `base_url` / `model` / `key_ref`.
-3. Reload the panel page → the endpoint shows **key ✓** → click **Activate**.
+Open `http://<box>:8080`, paste the key from `~/.vlm_api_key` into the sidebar
+field, press **save**. It is stored only in that browser.
 
-Then any tool on the router gets that model. The client's `model` field is
-ignored and rewritten to the active endpoint's model, so you never reconfigure
-the harness — just flip it here.
+**5. Autostart at login + boot** (rootless user service):
 
-## Important: don't double-manage the local model
-The panel starts/stops the local model by launching `~/serve-vlm.sh` directly
-(as user `liuyang`, no sudo). If you *also* enable the `llama-vlm.service`
-systemd unit, the two will fight (systemd restarts what the panel stops). Pick
-one: **either** use this panel to run the local model, **or** the systemd unit —
-not both at once.
+```bash
+bin/llm autostart
+```
 
-## Files
-- `panel.py`     — the panel + router (edit only to change behavior)
-- `presets.json` — all config: presets, endpoints, engines, runtime, profiles, settings
-- `secrets.json` — cloud API keys (chmod 600, git-ignore it)
-- `index.html`   — the web UI
-- `llm-panel.service` — systemd unit
-- `panel.log`    — panel's own stdout/stderr
-- `~/serve-vlm.sh`  — llama.cpp launcher (all Unsloth-aligned knobs; env-driven)
-- `~/serve-vllm.sh` — vLLM launcher (used when you switch engine to vLLM)
+Recommended alongside it — the panel spawns `llama-server` and download jobs as
+children, so a default unit stop would kill them too:
 
-## API (for scripting, all POSTs need `Authorization: Bearer <key>`)
-| Method | Path | Body | Does |
-|---|---|---|---|
-| GET  | `/api/status` | — | GPU, running config, engine, health, tps |
-| GET  | `/presets.json` | — | full config + computed VRAM + router URL |
-| GET  | `/api/log?n=40` | — | server.log tail |
-| POST | `/api/switch` | `{"preset":"q4-96k"}` or `{"custom":{"ctx":98304,"kv":"q4_0","parallel":1}}` | restart local model |
-| POST | `/api/engine` | `{"engine":"vllm"}` | switch inference engine (llamacpp/vllm/ollama) |
-| POST | `/api/runtime` | `{"thinking":"off","context_shift":"off","apply":true}` | set thinking/context knobs (+optional restart) |
-| POST | `/api/activate` | `{"endpoint":"openrouter"}` | route tools to that backend |
-| POST | `/api/gen` | `{"temperature":0.6,...}` | set operating defaults |
-| POST | `/api/profile` | `{"slot":"default","preset":"q4-96k"}` | set ⭐/🧪 |
-| POST | `/api/endpoint` | `{"id":"x","base_url":"...","model":"...","api_key":"..."}` | add/update cloud endpoint |
-| POST | `/api/stop` | — | stop the local model, free the GPU |
+```bash
+mkdir -p ~/.config/systemd/user/llm-panel.service.d
+printf '[Service]\nKillMode=process\n' > ~/.config/systemd/user/llm-panel.service.d/override.conf
+systemctl --user daemon-reload
+```
+
+**6. Optional — allow the panel to power the box off.** Rootless by default means
+it *cannot*; the Power view shows the exact rule and a Copy button. It grants only
+power-off and reboot to one user:
+
+```bash
+sudo tee /etc/polkit-1/rules.d/49-llm-panel-power.rules >/dev/null <<'EOF'
+polkit.addRule(function(action, subject) {
+  if ((action.id == "org.freedesktop.login1.power-off" ||
+       action.id == "org.freedesktop.login1.reboot") &&
+      subject.user == "YOUR_USER") {
+    return polkit.Result.YES;
+  }
+});
+EOF
+```
+
+**7. Optional — open the ports on the LAN** (`sudo`, and only if you want other
+machines to reach it):
+
+```bash
+sudo ufw allow from 192.168.0.0/24 to any port 8080 proto tcp
+sudo ufw allow from 192.168.0.0/24 to any port 8001 proto tcp
+```
+
+> The API key is the only thing standing between the LAN and full control of this
+> box — switching models, stopping the server, running installs, and (if you added
+> the polkit rule) powering it off. Treat it like a password, and never commit it.
+
+---
+
+## The panel, view by view
+
+A sidebar with five destinations. Light and dark follow the OS, with a toggle in
+the top bar that overrides and persists per browser.
+
+### Overview
+
+- **Currently serving** — model, preset, engine, KV type, context, slots,
+  thinking, context-shift, estimated VRAM, PID. Context shows the per-request
+  figure when slots are split (see *Context vs slots*).
+- **GPU memory** — used / total with a bar that turns amber past 90% and red past 96%.
+- **System monitor** — GPU util, VRAM, power, temp, clock, fan, CPU util, load,
+  RAM, tokens/sec. Polled every 2s.
+- **GPU power limit** — slider + Apply. Needs `sudo nvidia-smi -pl`; if it isn't
+  permitted the panel hands you the exact command instead of failing silently.
+- **Router** — the URL to point every tool at, a copy button, and which backend is
+  currently answering.
+
+### Models & endpoints
+
+- **Endpoints** — one card per backend: the local model plus any OpenAI-compatible
+  cloud provider. **Activate** switches which one the router forwards to; cloud
+  activation warns that requests will leave the machine. `test` checks
+  reachability. Keys live in `config/secrets.json` (git-ignored, chmod 600) and are
+  never sent to the browser — cards show only `key set` / `no key`.
+- **Add endpoint** — id, label, base URL, model id, key, vision flag.
+- **Inference engine** — llama.cpp / vLLM / Ollama. Only one may hold the GPU;
+  switching stops the other. Installed engines are green; ones with a configured
+  setup script also offer **Reinstall**, and uninstalled ones offer **Install**,
+  which runs the *configured* command server-side (the browser only ever sends an
+  engine name) in the background, logging to `logs/install-<engine>.log`.
+  Reinstalling the engine that is currently serving is refused.
+- **Download a model** — paste `org/name`, a full URL, or `org/name-GGUF:QUANT`
+  (the `:QUANT` becomes an `--include` glob and pulls any `mmproj*` too). Runs in
+  the background with live progress. Job state is persisted, so a panel restart
+  re-adopts running downloads instead of orphaning them, and still auto-registers
+  the model when it lands.
+
+### Presets
+
+- **Profiles** — your **Default** preset (select + Apply) beside a live **Active**
+  card showing what is serving right now, its model, KV/context/slots, measured
+  VRAM, and a **Reapply** button.
+- **All presets** — one card each: model, note, KV, context, slots, estimated
+  VRAM with a colour-coded bar. The running preset is ringed in green with a
+  **LIVE** badge and swaps its estimate for *measured* VRAM, refreshed every 2s.
+  A star marks your Default. **Drag a card by its grip to reorder**; the order is
+  saved.
+- **Editing** — pencil opens the editor: id (renameable — profiles follow the
+  rename), model, KV, context, slots, GPU layers, thinking, reasoning effort,
+  context-shift, cache-reuse, image-min-tokens, tag, note. The VRAM line updates
+  as you change model or context, and says plainly whether it fits.
+- **Custom preset** — a slider for context, KV precision and slots, with a live
+  estimate before you commit.
+
+### Runtime & thinking
+
+llama.cpp knobs, applied as env to `serve-vlm.sh`. They take effect on the next
+restart — **Save** stores them, **Save & restart model now** applies immediately.
+
+- **Thinking** `auto | on | off` and **reasoning effort**
+- **Context shift** — off means the server errors when full (correct for agents
+  that compact); on silently drops the oldest tokens and corrupts agent state
+- **Flash attention** — required for quantized KV
+- **KV cache across slots** — `shared` (one pool, a single request may use the
+  whole context) or `split` (each slot reserves context ÷ slots)
+- **cache-reuse**, **image-min-tokens**, **extra llama-server flags**
+- **Operating settings** — generation defaults the router injects when a client
+  omits them (temperature, top_p, top_k, min_p, max_tokens, penalties), an optional
+  default system prompt, and an "override client" switch. Leave them blank to let
+  the server's own thinking-aware sampling profile win.
+
+### Server log
+
+Live tail of the llama.cpp log, **newest line first**, pinned to the top.
+
+### Power
+
+Host uptime, model-server state, and **Shut down** / **Restart** — which stop the
+model first, then run after a 60-second grace period with a Cancel banner visible
+from any view. If the panel lacks permission it says so and shows the one-time
+polkit rule rather than failing later.
+
+---
+
+## Two things that bite
+
+### Context vs slots
+
+`-c` in llama.cpp is the **total** context, divided across server slots:
+
+```
+-c 98304 --parallel 2   ->   n_ctx_slot = 49152     # 48K per request, not 96K
+```
+
+Set your client's context window to the **per-slot** figure, not the total. The
+panel shows both wherever slots > 1.
+
+Leaving slots **blank = auto** is the default: `--parallel` isn't passed at all,
+llama.cpp picks, and it enables a shared KV pool — so a single client can use the
+whole context while concurrency still works. Set an explicit number only when you
+want each slot's context *reserved*.
+
+### VRAM estimates
+
+`estimator.coeffs_gb` is a linear fit of measured runs on one base model:
+
+```
+VRAM_gb = base_gb + per_1k_gb * ctx/1000
+```
+
+Because it only knows context and KV type, a preset pointing at a *different*
+model is corrected by the difference in on-disk weight size (`base_weight_gb` is
+the fit's reference). If neither size can be resolved the figure is marked `?`
+rather than quietly reported as if it were exact. Treat all of it as a guide and
+watch the log for OOM — on a 16 GB card the fit runs ~0.3–0.5 GB conservative.
+
+---
+
+## HTTP API
+
+Everything mutating needs `Authorization: Bearer $(cat ~/.vlm_api_key)`.
+
+| method | path | what |
+| --- | --- | --- |
+| GET | `/presets.json` | full config + per-preset VRAM estimate |
+| GET | `/api/status` | GPU/CPU, running model, health, engines, uptime, power capability |
+| GET | `/api/models` | models found under the models root, with weight sizes |
+| GET | `/api/downloads` | download jobs and progress |
+| GET | `/api/log?n=N` | last N log lines |
+| POST | `/api/switch` | `{preset}` or `{custom:{ctx,kv,parallel,model}}` — restarts the server |
+| POST | `/api/stop` | stop the model, free the GPU |
+| POST | `/api/preset` | `{op: upsert\|delete\|reorder}` — upsert accepts `orig_id` to rename |
+| POST | `/api/profile` | `{slot, preset}` |
+| POST | `/api/activate` | `{endpoint}` — which backend the router forwards to |
+| POST | `/api/endpoint` | add / delete a cloud endpoint |
+| POST | `/api/check` | reachability test for an endpoint |
+| POST | `/api/gen` | generation defaults |
+| POST | `/api/runtime` | llama.cpp runtime knobs (`apply: true` restarts) |
+| POST | `/api/engine` | switch inference engine |
+| POST | `/api/engine-config` | per-engine options |
+| POST | `/api/engine-install` | `{engine, force}` — runs the configured install script |
+| POST | `/api/download` | `{repo, dest, name, include}` |
+| POST | `/api/models` | register a downloaded model |
+| POST | `/api/power` | GPU power limit (watts) |
+| POST | `/api/system` | `{op: poweroff\|reboot\|cancel, delay_s, stop_model}` |
+
+## Config
+
+`config/presets.json` — presets, models, endpoints, engines, profiles, runtime,
+estimator, gen defaults. `config/secrets.json` — cloud API keys, git-ignored,
+chmod 600, referenced by each endpoint's `key_ref`.
+
+## Troubleshooting
+
+- **Client rejected above N tokens** — slots are splitting the context. See
+  *Context vs slots*.
+- **Model won't load / OOM** — check the estimate against the card and watch the
+  Server log; the estimator cannot see other processes' VRAM.
+- **Panel says a change needs a restart** — runtime knobs only apply to a freshly
+  launched server; use *Save & restart model now*.
+- **Power buttons missing** — the polkit rule isn't installed; the Power view
+  shows the exact command.
+- **A panel restart killed the model** — add the `KillMode=process` override above.

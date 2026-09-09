@@ -21,3 +21,7 @@ vllm-env/
 # os / editor
 .DS_Store
 *.swp
+
+# editor / pre-change backups
+*.bak
+*.bak-*

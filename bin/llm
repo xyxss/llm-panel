@@ -6,13 +6,19 @@
 #   llm status              show GPU / running model / engine / health (JSON)
 #   llm health              quick router health check
 #   llm models              list models discovered under ~/models
+#   llm rescan              re-detect MTP head / projector / size, write it to config
+#   llm rescan-dry          show what rescan would change, without writing
+#   llm bench <model> K=V   sweep settings with llama-bench (e.g. NCMOE=40,48)
+#   llm bench-status        show the running sweep and the last results
 #   llm presets             list configured presets
 #   llm switch <preset>     restart the local model into a preset (e.g. q8-96k)
 #   llm engine <name>       switch engine: llamacpp | vllm | ollama
 #   llm stop-model          stop the local model (free the GPU)
 #   llm logs [N]            tail the model server log (default 40 lines)
 #   llm panel start|stop|restart|status|logs
-#   llm install-service     install + enable the systemd unit (needs sudo)
+#   llm autostart           start the panel at login + boot (rootless user service)
+#   llm autostart-off       disable the auto-start user service
+#   llm install-service     alt: system-wide unit (needs sudo)
 #   llm firewall            print the ufw commands to open the LAN ports
 #   llm url                 print the router URL to point harnesses at
 # =============================================================================
@@ -32,6 +38,32 @@ case "$cmd" in
   status)        api GET /api/status | pp ;;
   health)        curl -s "http://localhost:$ROUTER_PORT/health"; echo ;;
   models)        api GET /api/models | pp ;;
+  rescan)        # re-detect MTP head / projector / size for every model directory
+                 api POST /api/models -d '{"op":"rescan"}' | python3 -c "
+import sys,json; d=json.load(sys.stdin)
+ch=d.get('changes',[])
+print('no changes — config already matches the disk' if not ch else '%d change(s):'%len(ch))
+for c in ch: print('  %-42s %-16s %s -> %s'%(c['model'],c['field'],c['old'],c['new']))" ;;
+  bench)         # llm bench <model-id> [NCMOE=40,48 ...]  — sweep and print the table
+                 mid="${1:?usage: llm bench <model-id> [key=value ...]}"; shift || true
+                 body="{\"model\":\"$mid\""
+                 for kv in "$@"; do body="$body,\"${kv%%=*}\":\"${kv#*=}\""; done
+                 api POST /api/bench -d "$body}" | pp
+                 echo "watch: llm bench-status" ;;
+  bench-status)  api GET /api/bench | python3 -c "
+import sys,json; d=json.load(sys.stdin)
+print('running' if d['running'] else ('error: '+str(d['error'])[:200] if d['error'] else 'idle'))
+for lab,e in sorted(d.get('saved',{}).items(), key=lambda x:-(x[1].get('at') or 0))[:3]:
+    print('\n== %s  (%s)'%(lab, e.get('cmd','')))
+    for r in e.get('rows',[]):
+        print('   ncmoe=%-5s lm=%-6s lzm=%-5s k/v=%s/%-6s ub=%-5s %-8s %8.2f tok/s'%(
+            r.get('n_cpu_moe'),r.get('load_mode'),r.get('lazy_mode'),r.get('type_k'),r.get('type_v'),
+            r.get('n_ubatch'),r.get('test'),r.get('tps') or 0))" ;;
+  rescan-dry)    api GET /api/rescan | python3 -c "
+import sys,json; d=json.load(sys.stdin)
+ch=d.get('changes',[])
+print('no changes' if not ch else '%d change(s) WOULD be made:'%len(ch))
+for c in ch: print('  %-42s %-16s %s -> %s'%(c['model'],c['field'],c['old'],c['new']))" ;;
   presets)       curl -s "http://localhost:$PANEL_PORT/presets.json" | python3 -c "import sys,json;[print(p['id'],'\t',p['kv'],p['ctx'],'~%.1fGB'%p.get('vram_gb',0)) for p in json.load(sys.stdin)['presets']]" ;;
   switch)        api POST /api/switch -d "{\"preset\":\"${1:?usage: llm switch <preset>}\"}" | pp ;;
   engine)        api POST /api/engine -d "{\"engine\":\"${1:?usage: llm engine <llamacpp|vllm|ollama>}\"}" | pp ;;
@@ -47,10 +79,23 @@ case "$cmd" in
       logs)    tail -n "${2:-40}" "$ROOT/logs/panel.log" ;;
       *) echo "usage: llm panel start|stop|restart|status|logs" ;;
     esac ;;
+  autostart)
+    # rootless: start the panel at login AND boot (systemd user service + linger)
+    mkdir -p "$HOME/.config/systemd/user"
+    cp "$ROOT/systemd/llm-panel.user.service" "$HOME/.config/systemd/user/llm-panel.service"
+    "$0" panel stop >/dev/null 2>&1 || true
+    systemctl --user daemon-reload
+    systemctl --user enable --now llm-panel
+    loginctl enable-linger "$USER" 2>/dev/null || echo "(linger not enabled; run: sudo loginctl enable-linger $USER for boot-start)"
+    echo "panel is a user service now: starts at login + boot, restarts on failure."
+    echo "  status: systemctl --user status llm-panel   |   logs: journalctl --user -u llm-panel -f" ;;
+  autostart-off)
+    systemctl --user disable --now llm-panel 2>/dev/null; echo "disabled panel auto-start (user service)." ;;
   install-service)
+    # alternative: system-wide unit (needs sudo). 'autostart' (rootless) is preferred.
     sudo cp "$ROOT/systemd/llm-panel.service" /etc/systemd/system/ \
       && sudo systemctl daemon-reload && sudo systemctl enable --now llm-panel \
-      && echo "installed + enabled llm-panel.service" ;;
+      && echo "installed + enabled llm-panel.service (system)" ;;
   firewall)
     echo "sudo ufw allow from <your-subnet> to any port $PANEL_PORT proto tcp"
     echo "sudo ufw allow from <your-subnet> to any port $ROUTER_PORT proto tcp"

@@ -1,15 +1,17 @@
 {
-  "_comment": "Config for the LLM control panel + router. Edit freely, then reload the web page (panel picks up changes live, except the 'server' block which needs a panel restart). Remote API keys do NOT live here \u2014 they go in secrets.json (chmod 600), referenced by 'key_ref'.",
+  "_comment": "Config for the LLM control panel + router. Edit freely, then reload the web page (panel picks up changes live, except the 'server' block which needs a panel restart). Remote API keys do NOT live here — they go in secrets.json (chmod 600), referenced by 'key_ref'.",
   "server": {
     "host": "0.0.0.0",
     "panel_port": 8080,
     "router_port": 8001,
     "vlm_port": 8000,
-    "llama_bin": "~/llama.cpp/build/bin/llama-server",
+    "llama_bin": "~/llama.cpp-sm120/build/bin/llama-server",
     "serve_script": "$ROOT/serve/serve-vlm.sh",
     "server_log": "~/server.log",
     "api_key_file": "~/.vlm_api_key",
-    "secrets_file": "$ROOT/config/secrets.json"
+    "secrets_file": "$ROOT/config/secrets.json",
+    "autostart_local": true,
+    "llama_bin_fallback": "~/llama.cpp/build/bin/llama-server"
   },
   "gpu": {
     "name": "NVIDIA GeForce RTX 5080",
@@ -17,117 +19,547 @@
     "vram_total_mib": 16303
   },
   "estimator": {
-    "_comment": "VRAM_gb(ctx, kv) = base_gb + per_1k_gb * ctx/1000. Linear fit of your measured presets.",
+    "_comment": "VRAM_gb(ctx,kv) = base_gb + per_1k_gb * ctx/1000, plus mtp_overhead_gb when MTP is on, plus (this model's file size - base_weight_gb). Refit 2026-09-04 against the sm120 build from clean measurements: q4_0 and q8_0 are exact to ~0.01 GB over 32k-196k; f16 is DERIVED from the q4_0/q8_0 KV slopes, not measured (f16 OOMs past ~32k anyway). NOTE the fit models VRAM AT LOAD. Real failures happen at PEAK during a long prompt, which grows with context: q8_0/80k/MTP loads at 15.24 GB and dies, while Q4_K_S/8k loads at 15.31 GB and is fine. No single cap separates those, so the shipped presets carry MEASURED vram_gb and the fit is only used for the custom-preset builder.",
     "coeffs_gb": {
       "f16": [
-        10.9,
-        0.0938
+        11.117,
+        0.0677
       ],
       "q8_0": [
-        10.9,
-        0.0469
+        11.117,
+        0.0372
       ],
       "q4_0": [
-        11.35,
-        0.0234
+        11.117,
+        0.02194
       ]
     },
-    "warn_gb": 15.3,
-    "cap_gb": 15.8
+    "warn_gb": 15.0,
+    "cap_gb": 15.5,
+    "base_weight_gb": 10.18,
+    "base_model": "qwen3-vl",
+    "mtp_overhead_gb": [
+      0.75,
+      0.0039
+    ],
+    "_mtp_comment": "Extra VRAM when speculative decoding is on (spec_type=draft-mtp): the NextN draft head plus its own draft KV. Same linear form as coeffs_gb: gb = 0.75 + 0.0039 * ctx/1000. Measured on the RTX 5080 at IQ3_XXS and identical for q4_0 and q8_0 KV: +900 MiB @32k, +1030 MiB @64k. Added on top of coeffs_gb only when MTP is enabled. NOTE this figure bundles the base model's own head weights (see mtp_head_gb) with the draft KV, because it was measured as a difference on a GGUF that has the head embedded.",
+    "slot_overhead_gb": [
+      0.4385,
+      0.0
+    ],
+    "_slot_comment": "Cost of EACH server slot beyond the first: gb = (slots-1) * 0.4385. CONSTANT, not ctx-scaled — measured 1346 MiB for 3 extra slots at BOTH 32k and 96k (IQ3_XXS/q4_0/MTP2): 32k 13020 -> 14366 MiB, 96k 13646 -> 14992 MiB. The linear form is kept for symmetry with coeffs_gb; the slope is genuinely 0. llama.cpp's --parallel defaults to -1 = auto, which server.cpp forces to n_parallel=4 + kv_unified=true (tools/server/server.cpp:152) — so 'auto' is ALWAYS 4 slots, and an explicit --no-kv-unified cannot take effect under auto because that assignment runs after arg parsing. Unified KV shares one pool of -c tokens, so the KV term is NOT multiplied; with kv_unified off llama.cpp instead splits it (llama-context.cpp:293: n_ctx_seq = n_ctx / n_seq_max), so the KV term is not multiplied there either — only this per-slot constant applies. COST BEYOND VRAM: unified KV is ~3x slower per stream. At 96k, 1 slot decodes 73-82 tok/s while auto/4-slot decodes 25.4 tok/s single-stream and ~7.5 x4 = 30 tok/s aggregate under 4 concurrent requests. So auto only pays off when several clients must be served at once, and even then total throughput is barely above one 1-slot stream.",
+    "vision_gb": 1.11,
+    "_vision_comment": "VRAM handed back by vision: off. MEASURED, not the file size: mmproj-F16.gguf is 885 MiB but dropping it saved 1136 MiB = 1.11 GiB (96k/q4_0/MTP2/1 slot: 14782 MiB with the projector, 13646 without) because its own compute buffers go too. coeffs_gb were fit WITH the projector loaded, so this is subtracted, never added.",
+    "mtp_head_gb": 0.35,
+    "_mtp_head_comment": "Weight cost of the NextN/MTP head EMBEDDED in the main GGUF. Read out of the tensor table: 0.351 GB in Qwen3.8-27B-UD-IQ3_XXS, 0.351 in UD-IQ4_XS, 0.348 in GSQ-RCO-IQ3_XXS-mtp -- the head keeps its own precision whatever the trunk quant is, so one constant covers the family. It is loaded ONLY when --spec-type draft-mtp is passed: common.cpp:1714 sets mparams.load_mtp from the spec type and models/qwen35.cpp then marks every nextn tensor TENSOR_SKIP when it is false. So a '-mtp' GGUF is free while MTP is off and costs this much the moment it goes on, on top of mtp_overhead_gb's draft KV. mtp_overhead_gb was measured as (on - off) on the base model and therefore already contains one copy of this, which the estimator removes before charging the model's own.",
+    "draft_archs": {},
+    "_draft_archs_comment": "arch -> --spec-type, for standalone draft models. Built in: eagle3, dflash, dspark (and an embedded NextN head, which needs no file). When llama.cpp gains another speculative family, add it here -- {\"<general.architecture>\": \"draft-<x>\"} -- and rescan will classify those GGUFs without any code change."
   },
   "models": {
-    "qwen3-vl": {
-      "label": "Qwen3.8-27B VLM (GGUF UD-IQ3_XXS)",
-      "dir": "~/models/Qwen3.8-27B",
+    "Qwen3.8-27B-GGUF-UD-IQ4_XS": {
+      "dir": "/home/liuyang/models/Qwen3.8-27B-GGUF-UD-IQ4_XS",
+      "label": "Qwen3.8-27B-GGUF-UD-IQ4_XS",
       "vision": true,
-      "note": "Local reasoning + vision model, served by llama.cpp as 'qwen3-vl'."
+      "note": "downloaded",
+      "kind": "dense-vl",
+      "supports_mtp": true,
+      "has_mmproj": true,
+      "mtp_embedded": true,
+      "mtp_head_gb": 0.351,
+      "mtp_source": "embedded",
+      "gguf": "Qwen3.8-27B-UD-IQ4_XS.gguf",
+      "mtp_draft_files": [],
+      "weight_gb": 14.25,
+      "arch": "qwen35",
+      "mmproj_file": "mmproj-BF16.gguf",
+      "mtp_draft_rejected": {},
+      "spec_types": [
+        "draft-mtp"
+      ],
+      "n_layer": 65,
+      "n_embd": 5120,
+      "ctx_train": 262144,
+      "max_tensor_gb": 0.87,
+      "params_b": 27.3,
+      "attn_interval": 4,
+      "kv_bytes_per_token": {
+        "f16": 66560,
+        "q8_0": 35360,
+        "q4_0": 17680
+      },
+      "residency": {
+        "vram_gb": 15.92,
+        "ram_gb": 30.5,
+        "weight_gb": 14.25,
+        "residency": "vram",
+        "hint": "fits in VRAM: -ngl 99, no expert offload",
+        "suggest": {
+          "ngl": 99
+        }
+      }
+    },
+    "Qwen3.8-27B-UD-IQ3_XXS": {
+      "dir": "/home/liuyang/models/Qwen3.8-27B-GGUF-UD-IQ3_XXS",
+      "label": "Qwen3.8-27B-UD-IQ3_XXS",
+      "vision": true,
+      "note": "",
+      "kind": "dense-vl",
+      "supports_mtp": true,
+      "has_mmproj": true,
+      "mtp_embedded": true,
+      "mtp_head_gb": 0.351,
+      "mtp_source": "embedded",
+      "gguf": "Qwen3.8-27B-UD-IQ3_XXS.gguf",
+      "mtp_draft_files": [],
+      "weight_gb": 10.93,
+      "arch": "qwen35",
+      "mmproj_file": "mmproj-BF16.gguf",
+      "mtp_draft_rejected": {},
+      "spec_types": [
+        "draft-mtp"
+      ],
+      "n_layer": 65,
+      "n_embd": 5120,
+      "ctx_train": 262144,
+      "max_tensor_gb": 0.72,
+      "params_b": 27.3,
+      "attn_interval": 4,
+      "kv_bytes_per_token": {
+        "f16": 66560,
+        "q8_0": 35360,
+        "q4_0": 17680
+      },
+      "residency": {
+        "vram_gb": 15.92,
+        "ram_gb": 30.5,
+        "weight_gb": 10.93,
+        "residency": "vram",
+        "hint": "fits in VRAM: -ngl 99, no expert offload",
+        "suggest": {
+          "ngl": 99
+        }
+      },
+      "missing": false
+    },
+    "Qwen3.8-Flash-Next-UD-IQ3_XXS": {
+      "dir": "/home/liuyang/models/Qwen3.8-Flash-Next-UD-IQ3_XXS",
+      "label": "Qwen3.8-Flash-Next 125B-A6B (UD-IQ3_XXS)",
+      "vision": false,
+      "note": "180B total params / 6B active MoE + 51B engram table. 76.3 GiB on disk - it does NOT fit in VRAM+RAM and streams from NVMe. Needs --n-cpu-moe and --lazy-mode (both live in each preset's extra_flags) and ngl=auto so --fit can size the split. MTP: the main GGUF has NO nextn tensors, so it can only come from a separate mtp-*.gguf (mtp_source: external). Both heads in the dir are UNLOADABLE on mainline b10816 — mtp-shared-* is missing token_embd.weight by design, and the non-shared mtp-Q4_K_M.gguf wants a HyperConnections output norm this build does not have; it needs Unsloth's qwen4exp/mtp fork. Measured there anyway: MTP is a ~21% NET LOSS on this card because it costs ~2.8 GB and forces n-cpu-moe 48. supports_mtp stays false; set mtp_head to one of mtp_draft_files to retry on a future build.",
+      "kind": "moe-stream",
+      "supports_mtp": false,
+      "has_mmproj": false,
+      "mtp_embedded": false,
+      "mtp_head_gb": 0.0,
+      "mtp_source": "external",
+      "mtp_draft_files": [
+        "mtp-Q4_K_M.gguf"
+      ],
+      "gguf": "Qwen3.8-Flash-Next-UD-IQ3_XXS-00001-of-00003.gguf",
+      "weight_gb": 81.96,
+      "arch": "qwen4exp",
+      "mtp_draft_rejected": {
+        "mtp-shared-Q4_K_M.gguf": "shared head: omits token_embd.weight",
+        "mtp-shared-Q8_0.gguf": "shared head: omits token_embd.weight"
+      },
+      "spec_types": [
+        "draft-mtp"
+      ],
+      "n_layer": 48,
+      "n_embd": 2560,
+      "ctx_train": 262144,
+      "n_expert": 512,
+      "n_expert_used": 10,
+      "attn_interval": 4,
+      "kv_bytes_per_token": {
+        "f16": 24576,
+        "q8_0": 13056,
+        "q4_0": 6528
+      },
+      "residency": {
+        "vram_gb": 15.92,
+        "ram_gb": 30.5,
+        "weight_gb": 81.96,
+        "residency": "disk",
+        "hint": "streams from disk of experts: start at --n-cpu-moe 41 with -ngl auto and a --fit-target, then sweep it",
+        "suggest": {
+          "ngl": "auto",
+          "n_cpu_moe": 41,
+          "fit_target": 1536,
+          "load_mode": "mmap",
+          "parallel": 1,
+          "lazy_mode": "on"
+        }
+      }
+    },
+    "Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS": {
+      "dir": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS",
+      "label": "Qwen3.8-27B GSQ-RCO IQ3_XXS (no MTP head)",
+      "vision": true,
+      "kind": "dense-vl",
+      "supports_mtp": false,
+      "mtp_embedded": false,
+      "mtp_head_gb": 0.0,
+      "has_mmproj": true,
+      "note": "HEAD-LESS build: 64 blocks, no blk.64.nextn.* in the GGUF, so --spec-type draft-mtp CANNOT run here -- llama.cpp fails the load looking for tensors that are not in the file. Ships the BF16 projector, so this is the vision half of the GSQ-RCO pair. 10.08 GB of weights, 0.85 GB lighter than UD-IQ3_XXS. Use the -mtp sibling if you want speculative decoding.",
+      "mtp_source": "none",
+      "gguf": "Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+      "mtp_draft_files": [],
+      "weight_gb": 10.09,
+      "arch": "qwen35",
+      "mmproj_file": "mmproj-Qwen3.8-27B-BF16.gguf",
+      "mtp_draft_rejected": {},
+      "spec_types": [],
+      "n_layer": 64,
+      "n_embd": 5120,
+      "ctx_train": 262144,
+      "max_tensor_gb": 0.68,
+      "params_b": 26.9,
+      "attn_interval": 4,
+      "kv_bytes_per_token": {
+        "f16": 65536,
+        "q8_0": 34816,
+        "q4_0": 17408
+      },
+      "residency": {
+        "vram_gb": 15.92,
+        "ram_gb": 30.5,
+        "weight_gb": 10.09,
+        "residency": "vram",
+        "hint": "fits in VRAM: -ngl 99, no expert offload",
+        "suggest": {
+          "ngl": 99
+        }
+      }
+    },
+    "Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS-mtp": {
+      "dir": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS",
+      "label": "Qwen3.8-27B GSQ-RCO IQ3_XXS + MTP head",
+      "vision": true,
+      "kind": "dense-vl",
+      "supports_mtp": true,
+      "mtp_embedded": true,
+      "mtp_head_gb": 0.348,
+      "has_mmproj": true,
+      "note": "SAME trunk as the plain GSQ-RCO build plus the NextN head in block 64 (10.43 vs 10.08 GB). TEXT ONLY -- no mmproj in the repo, so vision is off whatever a preset asks for. The head is TENSOR_SKIPped unless --spec-type draft-mtp is passed, so MTP off costs exactly what the head-less build costs; MTP on adds 0.35 GB of head plus the draft KV.",
+      "mtp_source": "embedded",
+      "gguf": "Qwen3.8-27B-GSQ-RCO-IQ3_XXS-mtp.gguf",
+      "mtp_draft_files": [],
+      "weight_gb": 10.44,
+      "arch": "qwen35",
+      "mmproj_file": "mmproj-Qwen3.8-27B-BF16.gguf",
+      "mtp_draft_rejected": {},
+      "spec_types": [
+        "draft-mtp"
+      ],
+      "missing": false,
+      "n_layer": 65,
+      "n_embd": 5120,
+      "ctx_train": 262144,
+      "max_tensor_gb": 0.68,
+      "params_b": 27.3,
+      "attn_interval": 4,
+      "kv_bytes_per_token": {
+        "f16": 66560,
+        "q8_0": 35360,
+        "q4_0": 17680
+      },
+      "residency": {
+        "vram_gb": 15.92,
+        "ram_gb": 30.5,
+        "weight_gb": 10.44,
+        "residency": "vram",
+        "hint": "fits in VRAM: -ngl 99, no expert offload",
+        "suggest": {
+          "ngl": 99
+        }
+      }
+    },
+    "Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_S-mtp": {
+      "dir": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_S",
+      "gguf": "Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+      "label": "Qwen3.8-27B GSQ-RCO IQ3_S + MTP head",
+      "vision": true,
+      "kind": "dense-vl",
+      "supports_mtp": true,
+      "mtp_embedded": true,
+      "mtp_head_gb": 0.35,
+      "mtp_source": "embedded",
+      "has_mmproj": true,
+      "note": "12.12 GB = the IQ3_S trunk plus the NextN head. Unlike the IQ3_XXS pair this one keeps the BF16 projector, so vision AND MTP are both available — but they compete for the same ~2 GB of slack, so expect to choose. Both builds live in the SAME directory, so the 'gguf' key is what separates them — without it the launcher and the panel resolve the name differently ('..._S.gguf' vs '..._S-mtp.gguf' sort one way under shell collation and the other under Python's) and could load different files.",
+      "mtp_draft_files": [],
+      "weight_gb": 12.12,
+      "arch": "qwen35",
+      "mmproj_file": "mmproj-Qwen3.8-27B-BF16.gguf",
+      "mtp_draft_rejected": {},
+      "spec_types": [
+        "draft-mtp"
+      ],
+      "n_layer": 65,
+      "n_embd": 5120,
+      "ctx_train": 262144,
+      "max_tensor_gb": 0.72,
+      "params_b": 27.3,
+      "attn_interval": 4,
+      "kv_bytes_per_token": {
+        "f16": 66560,
+        "q8_0": 35360,
+        "q4_0": 17680
+      },
+      "residency": {
+        "vram_gb": 15.92,
+        "ram_gb": 30.5,
+        "weight_gb": 12.12,
+        "residency": "vram",
+        "hint": "fits in VRAM: -ngl 99, no expert offload",
+        "suggest": {
+          "ngl": 99
+        }
+      },
+      "missing": true
+    },
+    "Qwen3.8-27B-GGUF-UD-IQ3_XXS": {
+      "dir": "/home/liuyang/models/Qwen3.8-27B-GGUF-UD-IQ3_XXS",
+      "label": "Qwen3.8-27B-GGUF-UD-IQ3_XXS",
+      "vision": true,
+      "note": "downloaded",
+      "gguf": "Qwen3.8-27B-UD-IQ3_XXS.gguf",
+      "arch": "qwen35",
+      "has_mmproj": true,
+      "mmproj_file": "mmproj-BF16.gguf",
+      "mtp_embedded": true,
+      "mtp_head_gb": 0.35,
+      "mtp_draft_files": [],
+      "mtp_draft_rejected": {},
+      "mtp_source": "embedded",
+      "spec_types": [
+        "draft-mtp"
+      ],
+      "weight_gb": 10.93,
+      "n_layer": 65,
+      "n_embd": 5120,
+      "ctx_train": 262144,
+      "max_tensor_gb": 0.72,
+      "params_b": 27.3,
+      "attn_interval": 4,
+      "kv_bytes_per_token": {
+        "f16": 66560,
+        "q8_0": 35360,
+        "q4_0": 17680
+      },
+      "residency": {
+        "vram_gb": 15.92,
+        "ram_gb": 30.5,
+        "weight_gb": 10.93,
+        "residency": "vram",
+        "hint": "fits in VRAM: -ngl 99, no expert offload",
+        "suggest": {
+          "ngl": 99
+        }
+      }
+    },
+    "Qwen3.8-27B-GSQ-RCO-GGUF-IQ2_S": {
+      "dir": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ2_S",
+      "label": "Qwen3.8-27B-GSQ-RCO-GGUF-IQ2_S",
+      "vision": true,
+      "note": "downloaded",
+      "gguf": "Qwen3.8-27B-GSQ-RCO-IQ2_S-mtp.gguf",
+      "arch": "qwen35",
+      "has_mmproj": true,
+      "mmproj_file": "mmproj-Qwen3.8-27B-BF16.gguf",
+      "mtp_embedded": true,
+      "mtp_head_gb": 0.35,
+      "mtp_draft_files": [],
+      "mtp_draft_rejected": {},
+      "mtp_source": "embedded",
+      "spec_types": [
+        "draft-mtp"
+      ],
+      "weight_gb": 9.61,
+      "n_layer": 65,
+      "n_embd": 5120,
+      "ctx_train": 262144,
+      "max_tensor_gb": 0.68,
+      "params_b": 27.3,
+      "attn_interval": 4,
+      "kv_bytes_per_token": {
+        "f16": 66560,
+        "q8_0": 35360,
+        "q4_0": 17680
+      },
+      "residency": {
+        "vram_gb": 15.92,
+        "ram_gb": 30.5,
+        "weight_gb": 9.61,
+        "residency": "vram",
+        "hint": "fits in VRAM: -ngl 99, no expert offload",
+        "suggest": {
+          "ngl": 99
+        }
+      }
+    },
+    "Qwen3.8-27B-GSQ-RCO-GGUF-IQ2_S-mtp": {
+      "gguf": "Qwen3.8-27B-GSQ-RCO-IQ2_S-mtp.gguf",
+      "arch": "qwen35",
+      "has_mmproj": true,
+      "vision": true,
+      "mmproj_file": "mmproj-Qwen3.8-27B-BF16.gguf",
+      "mtp_embedded": true,
+      "mtp_head_gb": 0.35,
+      "mtp_draft_files": [],
+      "mtp_draft_rejected": {},
+      "mtp_source": "embedded",
+      "spec_types": [
+        "draft-mtp"
+      ],
+      "n_layer": 65,
+      "n_embd": 5120,
+      "ctx_train": 262144,
+      "n_expert": null,
+      "n_expert_used": null,
+      "max_tensor_gb": 0.68,
+      "params_b": 27.3,
+      "attn_interval": 4,
+      "kv_bytes_per_token": {
+        "f16": 66560,
+        "q8_0": 35360,
+        "q4_0": 17680
+      },
+      "weight_gb": 9.61,
+      "residency": {
+        "vram_gb": 15.92,
+        "ram_gb": 30.5,
+        "weight_gb": 9.61,
+        "residency": "vram",
+        "hint": "fits in VRAM: -ngl 99, no expert offload",
+        "suggest": {
+          "ngl": 99
+        }
+      },
+      "dir": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ2_S",
+      "label": "Qwen3.8-27B-GSQ-RCO-GGUF-IQ2_S-mtp",
+      "kind": "dense-vl",
+      "note": "auto-registered by rescan"
     }
   },
   "presets": [
     {
-      "id": "q8-64k",
-      "model": "qwen3-vl",
+      "id": "iq4xs-q8-60k",
+      "model": "Qwen3.8-27B-GGUF-UD-IQ4_XS",
       "kv": "q8_0",
-      "ctx": 65536,
+      "ctx": 62464,
       "parallel": 1,
       "ngl": 99,
-      "note": "Best KV quality, safe image headroom",
-      "tag": "quality"
+      "spec_type": "none",
+      "vram_gb": 15.42,
+      "measured_tps": "48.1 / 48.2",
+      "measured_prose_tps": 48.1,
+      "measured_code_tps": 48.2,
+      "images_ok": true,
+      "note": "Highest total fidelity: 4-bit weights + near-lossless q8_0 KV. Slow, and only ~0.5 GB spare",
+      "tag": "Blance-text",
+      "reason_effort": "low",
+      "vision": "off"
     },
     {
-      "id": "q8-96k",
-      "model": "qwen3-vl",
+      "id": "iq4xs-q4-48k",
+      "model": "Qwen3.8-27B-GGUF-UD-IQ4_XS",
+      "kv": "q4_0",
+      "ctx": 49152,
+      "parallel": 1,
+      "ngl": 99,
+      "spec_type": "none",
+      "vram_gb": 15.43,
+      "measured_tps": "44.9 / 44.9",
+      "measured_prose_tps": 44.9,
+      "measured_code_tps": 44.9,
+      "images_ok": false,
+      "note": "TEXT ONLY — 70k works, an image request OOMs. Max context at 4-bit",
+      "tag": "Blance-vision",
+      "vision": "on"
+    },
+    {
+      "id": "flashnext-speed",
+      "model": "Qwen3.8-Flash-Next-UD-IQ3_XXS",
       "kv": "q8_0",
-      "ctx": 98304,
-      "parallel": 1,
-      "ngl": 99,
-      "note": "Best KV quality; TIGHT \u2014 can OOM on big images",
-      "tag": "tight"
+      "ctx": 102400,
+      "parallel": "auto",
+      "ngl": "auto",
+      "spec_type": "none",
+      "fit": "on",
+      "n_cpu_moe": 40,
+      "lazy_mode": "on",
+      "vram_gb": 14.9,
+      "measured_tps": "16.9 decode / 56.6 prefill",
+      "measured_prose_tps": 16.9,
+      "images_ok": false,
+      "note": "MAX SPEED. n-cpu-moe 40 is the floor that loads (36 = hard OOM) and the fastest measured. 96k is the practical ctx ceiling here: 128k also works at 15.7 tok/s but peaks at 15.51 GB, and 160k OOMs. Measured under a 3120-token prompt, not load-only. Cold first request ~10 tok/s until the page cache warms.",
+      "tag": "Quality-Blance",
+      "load_mode": "mmap",
+      "fit_target": 1536
     },
     {
-      "id": "q4-96k",
-      "model": "qwen3-vl",
-      "kv": "q4_0",
-      "ctx": 98304,
+      "id": "flashnext-max",
+      "model": "Qwen3.8-Flash-Next-UD-IQ3_XXS",
+      "kv": "q8_0",
+      "ctx": 262144,
       "parallel": 1,
-      "ngl": 99,
-      "note": "Full context + safe headroom",
-      "tag": "recommended"
+      "ngl": "auto",
+      "spec_type": "none",
+      "fit": "on",
+      "n_cpu_moe": 48,
+      "lazy_mode": "on",
+      "vram_gb": 10.82,
+      "measured_tps": "11.2 decode / 42.6 prefill (MTP OFF)",
+      "measured_prose_tps": 11.2,
+      "images_ok": false,
+      "note": "MAX HEADROOM. Full native 262144 ctx, all 48 expert layers on CPU: peaks at 10.82 GB leaving ~5.5 GB free.",
+      "tag": "Quality-Maxtext",
+      "load_mode": "mmap",
+      "fit_target": 1536
     },
     {
-      "id": "q4-128k",
-      "model": "qwen3-vl",
-      "kv": "q4_0",
-      "ctx": 131072,
-      "parallel": 1,
+      "id": "rco2-mtp-q8",
+      "model": "Qwen3.8-27B-GSQ-RCO-GGUF-IQ2_S-mtp",
+      "kv": "q8_0",
+      "ctx": 134144,
       "ngl": 99,
-      "note": "More context, still comfortable",
-      "tag": ""
+      "parallel": 1,
+      "spec_type": "draft-mtp",
+      "spec_n_max": 2,
+      "vision": "off",
+      "tag": "Speed-text"
     },
     {
-      "id": "q4-160k",
-      "model": "qwen3-vl",
-      "kv": "q4_0",
-      "ctx": 163840,
+      "id": "rco2-vision",
+      "model": "Qwen3.8-27B-GSQ-RCO-GGUF-IQ2_S-mtp",
+      "kv": "q8_0",
+      "ctx": 102400,
       "parallel": 1,
       "ngl": 99,
-      "note": "Most context; TIGHT",
-      "tag": "tight"
+      "spec_type": "draft-mtp",
+      "spec_n_max": 2,
+      "vram_gb": null,
+      "images_ok": false,
+      "note": "ESTIMATED, not yet measured (~13.0 GB). Near-lossless q8_0 KV with MTP still on -- the combination the UD build cannot afford at this context. Text only.",
+      "tag": "Speed-vision",
+      "reason_effort": "medium",
+      "mtp_head": "embedded"
     },
     {
-      "id": "agent",
-      "model": "qwen3-vl",
+      "id": "rco2-mtp",
+      "model": "Qwen3.8-27B-GSQ-RCO-GGUF-IQ2_S-mtp",
       "kv": "q4_0",
-      "ctx": 131072,
+      "ctx": 215040,
       "parallel": 1,
       "ngl": 99,
-      "thinking": "off",
-      "cache_reuse": 256,
-      "note": "128k, THINKING OFF \u2014 fast tool-calling agent loops (deepseek-harness)",
-      "tag": "agent"
-    },
-    {
-      "id": "deep",
-      "model": "qwen3-vl",
-      "kv": "q4_0",
-      "ctx": 98304,
-      "parallel": 1,
-      "ngl": 99,
-      "thinking": "on",
-      "reason_effort": "high",
-      "note": "96k, THINKING ON (high effort) \u2014 max reasoning quality, slower",
-      "tag": "quality"
-    },
-    {
-      "id": "vision",
-      "model": "qwen3-vl",
-      "kv": "q4_0",
-      "ctx": 65536,
-      "parallel": 1,
-      "ngl": 99,
-      "image_min_tokens": 1024,
-      "note": "64k + max image headroom, for heavy vision/grounding work",
-      "tag": "vision"
+      "spec_type": "draft-mtp",
+      "vision": "off",
+      "vram_gb": null,
+      "images_ok": true,
+      "note": "ESTIMATED, not yet measured (~12.1 GB). The head-less GSQ-RCO build with its BF16 projector: images work, MTP CANNOT -- this GGUF has no NextN head, so the panel forces spec_type none and the MTP selector is greyed out. Expect ~53 tok/s (unaccelerated).",
+      "tag": "Speed-Longtext",
+      "spec_n_max": 2
     }
   ],
   "runtime": {
@@ -142,17 +574,22 @@
     "ubatch": null,
     "_notes": {
       "thinking": "on = always reason (best quality, burns output tokens) | off = never (fast, best for agent tool loops) | auto = chat template decides",
-      "context_shift": "off (RECOMMENDED for agents): server errors when full instead of silently dropping oldest tokens. on: keeps generating by discarding history \u2014 corrupts agent state.",
+      "context_shift": "off (RECOMMENDED for agents): server errors when full instead of silently dropping oldest tokens. on: keeps generating by discarding history — corrupts agent state.",
       "cache_reuse": "min chunk size (tokens) to reuse from KV cache via shifting. 256 is a good default; big speedup for agent loops that compact/edit history. 0 disables.",
-      "image_min_tokens": "Qwen-VL needs >=1024 image tokens for accurate grounding. Higher = more detail, more VRAM/time."
-    }
+      "image_min_tokens": "Qwen-VL needs >=1024 image tokens for accurate grounding. Higher = more detail, more VRAM/time.",
+      "spec_type": "draft-mtp = use the MTP/NextN draft head baked into the Qwen3.8-27B GGUF (no separate draft model needed) | none = plain decoding. Needs the sm120 build; the old PTX-JIT build asserts in graph_mtp and dies. Measured: 53 -> 77 tok/s prose, 53 -> 89 tok/s code. Costs ~1 GB VRAM.",
+      "spec_n_max": "Draft depth. 2 = best all-round (77 prose / 89 code); 3 favours code (70 prose / 94 code); 4 was worse on both. Re-sweep after any config change."
+    },
+    "flash_attn": "on",
+    "spec_type": "draft-mtp",
+    "spec_n_max": 2
   },
   "compaction": {
-    "_comment": "Guidance for the HARNESS (llama.cpp does not compact for you). With context_shift off, the server errors at the limit \u2014 the harness must summarize/compact before then.",
+    "_comment": "Guidance for the HARNESS (llama.cpp does not compact for you). With context_shift off, the server errors at the limit — the harness must summarize/compact before then.",
     "strategy": "summarize",
     "trigger_pct": 0.7,
     "reserve_tokens": 30000,
-    "_notes": "Trigger compaction at ~70% of the slot's context (ctx/parallel). Reserve ~30k for reasoning output + the next tool result. Use summarization, NOT hard truncation \u2014 truncation drops the system prompt and early tool results. If parallel>1, each slot only gets ctx/parallel, so scale the trigger down."
+    "_notes": "Trigger compaction at ~70% of the slot's context (ctx/parallel). Reserve ~30k for reasoning output + the next tool result. Use summarization, NOT hard truncation — truncation drops the system prompt and early tool results. If parallel>1, each slot only gets ctx/parallel, so scale the trigger down."
   },
   "engines": {
     "_comment": "Inference engines installed on this box. Only ONE can hold the GPU at a time (16GB).",
@@ -168,35 +605,38 @@
       "label": "vLLM",
       "port": 8000,
       "serve_script": "$ROOT/serve/serve-vllm.sh",
-      "install": "bash ~/setup_vllm_optional.sh",
+      "install": "bash $ROOT/setup/setup_vllm_optional.sh",
       "formats": "BF16/FP16, FP8, AWQ/GPTQ 4-bit (NOT GGUF IQ-quants, no multimodal GGUF)",
       "good_for": "High-throughput concurrent serving, multi-GPU",
-      "note": "Cannot run the current 27B UD-IQ3_XXS model. Needs a GPU-native model that fits 16GB, e.g. a 7B AWQ VLM.",
-      "model": "Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
-      "max_model_len": 16384,
-      "gpu_util": 0.9,
+      "note": "WORKING on RTX 5080 (sm_120)! Requires: flashinfer-jit-cache 0.6.18+cu130, apache-tvm-ffi==0.1.11 (0.1.12+ double-registers TVM FFI), no flashinfer-cubin, VLLM_USE_FLASHINFER_SAMPLER=0, FLASHINFER_DISABLE_VERSION_CHECK=1, cu13 toolchain. serve-vllm.sh sets these.",
+      "model": "Qwen/Qwen2.5-3B-Instruct-AWQ",
+      "max_model_len": 8192,
+      "gpu_util": 0.85,
       "quantization": "awq_marlin",
       "kv_cache_dtype": "auto",
       "max_num_seqs": 16,
       "enable_prefix_caching": "on",
-      "reasoning_parser": ""
+      "reasoning_parser": "",
+      "enforce_eager": "on"
     },
     "ollama": {
       "label": "Ollama",
       "port": 11434,
-      "install": "curl -fsSL https://ollama.com/install.sh | sh",
+      "install": "bash $ROOT/setup/setup_ollama.sh",
       "start": "ollama pull hf.co/unsloth/Qwen3-VL-8B-Instruct-GGUF:UD-Q4_K_XL",
       "formats": "GGUF (llama.cpp engine underneath)",
       "good_for": "Simplest setup, auto model management",
       "note": "Same engine as llama.cpp, port 11434, fewer exposed flags; bundles its own CUDA. Pull a model before activating.",
-      "model": "hf.co/unsloth/Qwen3-VL-8B-Instruct-GGUF:UD-Q4_K_XL",
+      "model": "qwen2.5:0.5b",
       "num_ctx": 32768,
       "keep_alive": "5m"
     }
   },
   "profiles": {
-    "default": "q8-96k",
-    "testing": "q8-64k"
+    "default": "rco2-vision",
+    "testing": null,
+    "extreme": null,
+    "tight": "iq4xs-q4-48k"
   },
   "gen_defaults": {
     "_comment": "Settings the ROUTER injects when a client OMITS them. NOTE: serve-vlm.sh already applies Unsloth's thinking-aware sampling at the SERVER level. Leave these null to let the server's profile win (recommended). Set a value only to force it for every client.",
@@ -235,7 +675,7 @@
   "active_endpoint": "local",
   "active_engine": "llamacpp",
   "router": {
-    "_comment": "Point any harness at http://<box>:8001/v1 with any model id \u2014 the router forwards to whichever endpoint is active and applies gen_defaults.",
+    "_comment": "Point any harness at http://<box>:8001/v1 with any model id — the router forwards to whichever endpoint is active and applies gen_defaults.",
     "free_gpu_on_remote": false,
     "request_timeout_s": 600
   },
@@ -243,7 +683,7 @@
     {
       "id": "local",
       "type": "local",
-      "label": "Local \u00b7 llama.cpp (Qwen3.8-27B VLM)",
+      "label": "Local · llama.cpp (Qwen3.8-27B VLM)",
       "preset_from": "running",
       "note": "Runs on this RTX 5080. Uses whatever local preset is applied above."
     },
@@ -255,7 +695,7 @@
       "model": "gpt-4o",
       "key_ref": "openai",
       "vision": true,
-      "note": "Set key in secrets.json \u2192 \"openai\"."
+      "note": "Set key in secrets.json → \"openai\"."
     },
     {
       "id": "openrouter",
@@ -297,5 +737,487 @@
       "vision": false,
       "note": "Set \"together\"."
     }
-  ]
+  ],
+  "_preset_keys": {
+    "_comment": "Every key a preset may carry, and the llama-server flag it becomes. Anything absent falls back to runtime{}, then to serve-vlm.sh's own default. The panel drops keys that do not apply to the chosen model (see drop_inapplicable) so a stale field can never reach the command line for the wrong family.",
+    "model": "picks models{} -> MDIR",
+    "ctx": "-c",
+    "kv": "--cache-type-k/-v",
+    "parallel": "--parallel",
+    "ngl": "-ngl, or 'auto' to omit it so --fit can size the split",
+    "vision": "off drops --mmproj (also forced off when the repo has no projector)",
+    "spec_type": "--spec-type: none | draft-mtp | draft-simple | ngram-*",
+    "spec_n_max": "--spec-draft-n-max",
+    "spec_n_min": "--spec-draft-n-min",
+    "spec_draft_kv": "--spec-draft-type-k/-v: quantize the DRAFT context's own KV",
+    "mtp_head": "MTP_HEAD: embedded | auto | none | <file in the model dir> | /abs/path",
+    "n_cpu_moe": "--n-cpu-moe N (MoE only)",
+    "cpu_moe": "on = --cpu-moe (MoE only)",
+    "lazy_mode": "--lazy-mode on|auto|off — on-demand rows for oversized tensors",
+    "load_mode": "--load-mode auto|none|mmap|mlock|mmap+mlock|dio — RAM vs disk residency; replaces the deprecated --mmap/--no-mmap/--mlock",
+    "fit": "--fit on|off (only meaningful with ngl:auto)",
+    "fit_target": "--fit-target MiB of VRAM margin to leave free",
+    "fit_ctx": "--fit-ctx N floor on the context --fit may choose",
+    "override_tensor": "-ot '<pattern>=<buffer>'",
+    "numa": "--numa",
+    "no_host": "on = --no-host",
+    "threads": "-t",
+    "threads_batch": "-tb",
+    "batch": "-b",
+    "ubatch": "-ub",
+    "flash_attn": "-fa",
+    "kv_unified": "--kv-unified / --no-kv-unified",
+    "kv_unified_per_slot": "--kv-unified-per-slot",
+    "context_shift": "--context-shift / --no-context-shift",
+    "cache_reuse": "--cache-reuse",
+    "thinking": "--reasoning",
+    "reason_effort": "--reasoning-effort",
+    "reason_format": "--reasoning-format",
+    "image_min_tokens": "--image-min-tokens",
+    "image_max_tokens": "--image-max-tokens",
+    "temp/top_p/top_k/min_p/presence_penalty/repeat_penalty": "server-level sampling. Normally LEAVE UNSET: serve-vlm.sh picks Unsloth's thinking-aware profile from `thinking`, and setting these pins one set for both modes.",
+    "extra_flags": "appended verbatim — last resort for anything above",
+    "vram_gb": "MEASURED peak. Omit it and /presets.json fills in an estimate and flags vram_measured:false so the card reads '~VRAM'."
+  },
+  "benchmarks": {
+    "smoke: KV type on IQ3_XXS": {
+      "at": 1788791888.9059584,
+      "cmd": "PROMPT=64 GEN=16 REPS=1 KV=q4_0,q8_0",
+      "rows": [
+        {
+          "model": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS/Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+          "n_cpu_moe": 0,
+          "ngl": 99,
+          "load_mode": "auto",
+          "lazy_mode": "auto",
+          "type_k": "q4_0",
+          "type_v": "q4_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "pp64",
+          "tps": 958.438526,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS/Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+          "n_cpu_moe": 0,
+          "ngl": 99,
+          "load_mode": "auto",
+          "lazy_mode": "auto",
+          "type_k": "q4_0",
+          "type_v": "q4_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "tg16",
+          "tps": 60.601831,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS/Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+          "n_cpu_moe": 0,
+          "ngl": 99,
+          "load_mode": "auto",
+          "lazy_mode": "auto",
+          "type_k": "q4_0",
+          "type_v": "q8_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "pp64",
+          "tps": 666.62369,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS/Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+          "n_cpu_moe": 0,
+          "ngl": 99,
+          "load_mode": "auto",
+          "lazy_mode": "auto",
+          "type_k": "q4_0",
+          "type_v": "q8_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "tg16",
+          "tps": 53.843111,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS/Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+          "n_cpu_moe": 0,
+          "ngl": 99,
+          "load_mode": "auto",
+          "lazy_mode": "auto",
+          "type_k": "q8_0",
+          "type_v": "q4_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "pp64",
+          "tps": 713.953574,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS/Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+          "n_cpu_moe": 0,
+          "ngl": 99,
+          "load_mode": "auto",
+          "lazy_mode": "auto",
+          "type_k": "q8_0",
+          "type_v": "q4_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "tg16",
+          "tps": 54.848456,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS/Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+          "n_cpu_moe": 0,
+          "ngl": 99,
+          "load_mode": "auto",
+          "lazy_mode": "auto",
+          "type_k": "q8_0",
+          "type_v": "q8_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "pp64",
+          "tps": 1139.876732,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-27B-GSQ-RCO-GGUF-IQ3_XXS/Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+          "n_cpu_moe": 0,
+          "ngl": 99,
+          "load_mode": "auto",
+          "lazy_mode": "auto",
+          "type_k": "q8_0",
+          "type_v": "q8_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "tg16",
+          "tps": 62.233622,
+          "tps_stddev": 0.0
+        }
+      ],
+      "error": null
+    },
+    "MTP depth · rco-mtp-q8-110k": {
+      "at": 1788792252.6353934,
+      "cmd": "server bench · 3 variant(s) · tg256 ×2",
+      "rows": [
+        {
+          "variant": "rco-mtp-q8-110k · MTP off",
+          "spec_type": "none",
+          "spec_n_max": 2,
+          "ctx": 113664,
+          "type_k": "q8_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 56.86,
+          "pp_tps": 174.2,
+          "runs": 2
+        },
+        {
+          "variant": "rco-mtp-q8-110k · MTP n=2",
+          "spec_type": "draft-mtp",
+          "spec_n_max": 2,
+          "ctx": 113664,
+          "type_k": "q8_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 73.18,
+          "pp_tps": 154.9,
+          "runs": 2
+        },
+        {
+          "variant": "rco-mtp-q8-110k · MTP n=3",
+          "spec_type": "draft-mtp",
+          "spec_n_max": 3,
+          "ctx": 113664,
+          "type_k": "q8_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 74.89,
+          "pp_tps": 155.8,
+          "runs": 2
+        }
+      ],
+      "error": null,
+      "kind": "server"
+    },
+    "flashnext: n-cpu-moe 40 vs 48": {
+      "at": 1788792521.0015054,
+      "cmd": "PROMPT=512 GEN=64 REPS=1 NGL=auto NCMOE=40,48 LOAD_MODE=mmap LAZY_MODE=on KV=q8_0 FIT_TARGET=1536",
+      "rows": [
+        {
+          "model": "/home/liuyang/models/Qwen3.8-Flash-Next-UD-IQ3_XXS/Qwen3.8-Flash-Next-UD-IQ3_XXS-00001-of-00003.gguf",
+          "n_cpu_moe": 40,
+          "ngl": -1,
+          "load_mode": "mmap",
+          "lazy_mode": "on",
+          "type_k": "q8_0",
+          "type_v": "q8_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "pp512",
+          "tps": 97.341654,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-Flash-Next-UD-IQ3_XXS/Qwen3.8-Flash-Next-UD-IQ3_XXS-00001-of-00003.gguf",
+          "n_cpu_moe": 40,
+          "ngl": -1,
+          "load_mode": "mmap",
+          "lazy_mode": "on",
+          "type_k": "q8_0",
+          "type_v": "q8_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "tg64",
+          "tps": 7.22448,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-Flash-Next-UD-IQ3_XXS/Qwen3.8-Flash-Next-UD-IQ3_XXS-00001-of-00003.gguf",
+          "n_cpu_moe": 48,
+          "ngl": -1,
+          "load_mode": "mmap",
+          "lazy_mode": "on",
+          "type_k": "q8_0",
+          "type_v": "q8_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "pp512",
+          "tps": 127.558156,
+          "tps_stddev": 0.0
+        },
+        {
+          "model": "/home/liuyang/models/Qwen3.8-Flash-Next-UD-IQ3_XXS/Qwen3.8-Flash-Next-UD-IQ3_XXS-00001-of-00003.gguf",
+          "n_cpu_moe": 48,
+          "ngl": -1,
+          "load_mode": "mmap",
+          "lazy_mode": "on",
+          "type_k": "q8_0",
+          "type_v": "q8_0",
+          "n_batch": 2048,
+          "n_ubatch": 512,
+          "threads": 4,
+          "flash_attn": 1,
+          "test": "tg64",
+          "tps": 7.390065,
+          "tps_stddev": 0.0
+        }
+      ],
+      "error": null
+    },
+    "flashnext: n-cpu-moe 40 vs 48 (server, warm)": {
+      "at": 1788792743.7590215,
+      "cmd": "server bench · 2 variant(s) · tg128 ×2",
+      "rows": [
+        {
+          "variant": "flashnext ncmoe 40",
+          "spec_type": "none",
+          "spec_n_max": null,
+          "ctx": 98304,
+          "type_k": "q8_0",
+          "n_cpu_moe": 40,
+          "load_mode": "mmap",
+          "test": "tg128",
+          "tps": 13.0,
+          "pp_tps": 8.0,
+          "runs": 2
+        },
+        {
+          "variant": "flashnext ncmoe 48",
+          "spec_type": "none",
+          "spec_n_max": null,
+          "ctx": 98304,
+          "type_k": "q8_0",
+          "n_cpu_moe": 48,
+          "load_mode": "mmap",
+          "test": "tg128",
+          "tps": 12.06,
+          "pp_tps": 12.0,
+          "runs": 2
+        }
+      ],
+      "error": null,
+      "kind": "server"
+    },
+    "all-presets-sweep 2026-09-07 11:31": {
+      "at": 1788799261.1984372,
+      "cmd": "server bench · 10 variant(s) · tg256 ×2",
+      "rows": [
+        {
+          "variant": "iq4xs-q8-60k",
+          "spec_type": "none",
+          "spec_n_max": null,
+          "ctx": 62464,
+          "type_k": "q8_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 48.07,
+          "pp_tps": 209.8,
+          "runs": 2
+        },
+        {
+          "variant": "iq4xs-q4-48k",
+          "spec_type": "none",
+          "spec_n_max": null,
+          "ctx": 49152,
+          "type_k": "q4_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 47.92,
+          "pp_tps": 222.4,
+          "runs": 2
+        },
+        {
+          "variant": "iq3UDxxs-q8-112k-mtp2",
+          "spec_type": "draft-mtp",
+          "spec_n_max": 2,
+          "ctx": 92160,
+          "type_k": "q8_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 86.71,
+          "pp_tps": 146.3,
+          "runs": 2
+        },
+        {
+          "variant": "iq3-q4-112k-mtp2",
+          "spec_type": "draft-mtp",
+          "spec_n_max": 2,
+          "ctx": 114688,
+          "type_k": "q4_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 84.97,
+          "pp_tps": 142.5,
+          "runs": 2
+        },
+        {
+          "variant": "iq3-q4-164k",
+          "spec_type": "none",
+          "spec_n_max": null,
+          "ctx": 167936,
+          "type_k": "q4_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 54.12,
+          "pp_tps": 167.2,
+          "runs": 2
+        },
+        {
+          "variant": "flashnext-speed",
+          "spec_type": "none",
+          "spec_n_max": null,
+          "ctx": 98304,
+          "type_k": "q8_0",
+          "n_cpu_moe": 40,
+          "load_mode": "mmap",
+          "test": "tg256",
+          "tps": 13.03,
+          "pp_tps": 17.9,
+          "runs": 2
+        },
+        {
+          "variant": "flashnext-max",
+          "spec_type": "none",
+          "spec_n_max": null,
+          "ctx": 262144,
+          "type_k": "q8_0",
+          "n_cpu_moe": 48,
+          "load_mode": "mmap",
+          "test": "tg256",
+          "tps": 11.83,
+          "pp_tps": 16.6,
+          "runs": 2
+        },
+        {
+          "variant": "rco-mtp-q8-110k",
+          "spec_type": "draft-mtp",
+          "spec_n_max": 2,
+          "ctx": 113664,
+          "type_k": "q8_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 72.13,
+          "pp_tps": 128.9,
+          "runs": 2
+        },
+        {
+          "variant": "rco-vision-q4-244k",
+          "spec_type": "none",
+          "spec_n_max": null,
+          "ctx": 249856,
+          "type_k": "q4_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 60.04,
+          "pp_tps": 134.5,
+          "runs": 2
+        },
+        {
+          "variant": "rq3s-mtp-q2-80k",
+          "spec_type": "draft-mtp",
+          "spec_n_max": 2,
+          "ctx": 83968,
+          "type_k": "q8_0",
+          "n_cpu_moe": null,
+          "load_mode": null,
+          "test": "tg256",
+          "tps": 48.31,
+          "pp_tps": 187.4,
+          "runs": 2
+        }
+      ],
+      "error": null,
+      "kind": "server"
+    }
+  },
+  "auto_switch": {
+    "_comment": "Client model name -> preset. When a client sends model=<alias>, the router loads that preset (its GGUF/quant, ctx, KV) if it differs from what is serving; same preset = no reload. Unmapped names are served by whatever is loaded.",
+    "enabled": true,
+    "map": {
+      "blance-text": "iq4xs-q8-60k",
+      "blance-vision": "iq4xs-q4-48k",
+      "quality-blance": "flashnext-speed",
+      "quality-maxtext": "flashnext-max",
+      "speed-text": "rco2-mtp-q8",
+      "speed-vision": "rco2-vision",
+      "speed-longtext": "rco2-mtp",
+      "my-test-tag": "zz-test"
+    }
+  }
 }

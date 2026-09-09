@@ -28,9 +28,33 @@ PREFIX_CACHE="${PREFIX_CACHE:-on}"         # on = --enable-prefix-caching (agent
 REASONING_PARSER="${REASONING_PARSER:-}"   # e.g. qwen3 / deepseek_r1 to split reasoning
 PORT="${PORT:-8000}"
 API_KEY="${API_KEY:-$(cat "$HOME/.vlm_api_key" 2>/dev/null)}"
+# --- RTX 5080 / Blackwell (sm_120) FlashInfer fix -------------------------------
+# FlashInfer JIT-compiles kernels and needs CUDA toolkit >= 12.9 for sm_120, but the
+# system nvcc is 12.4. torch's cu13 wheel ships a full CUDA 13.3 toolkit — point
+# FlashInfer at it. FLASHINFER_CUDA_ARCH_LIST=12.0f targets Blackwell explicitly.
+_CU13="$HOME/vllm-env/lib/python3.12/site-packages/nvidia/cu13"
+if [ -x "$_CU13/bin/nvcc" ]; then
+    export CUDA_HOME="$_CU13"
+    export PATH="$_CU13/bin:$PATH"
+fi
+export FLASHINFER_CUDA_ARCH_LIST="${FLASHINFER_CUDA_ARCH_LIST:-12.0f}"
+# The "FlashInfer requires sm75+" error is actually the FlashInfer top-k/top-p SAMPLER
+# JIT mis-parsing the sm_120 arch token. Fall back to the torch-native sampler.
+export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
+# flashinfer-cubin (PyPI) is 0.6.13 while flashinfer/jit-cache are 0.6.18 — no matching
+# cubin exists, but jit-cache 0.6.18+cu130 supplies the real sm_120 kernels, so bypass
+# the version guard.
+export FLASHINFER_DISABLE_VERSION_CHECK="${FLASHINFER_DISABLE_VERSION_CHECK:-1}"
+# Attention backend: leave UNSET so vLLM auto-selects (FlashInfer here). Only export
+# if the caller sets a valid V1 backend (e.g. FLASHINFER / FLASH_ATTN / TRITON_ATTN).
+[ -n "${VLLM_ATTENTION_BACKEND:-}" ] && export VLLM_ATTENTION_BACKEND
+# enforce-eager skips CUDA-graph capture: faster startup, more robust on new GPUs.
+ENFORCE_EAGER="${ENFORCE_EAGER:-on}"
+EAGER_FLAG=""; [[ "$ENFORCE_EAGER" == "on" ]] && EAGER_FLAG="--enforce-eager"
 
 echo "vLLM model : $MODEL"
 echo "max_len    : $MAX_MODEL_LEN   gpu_util: $GPU_UTIL   quant: ${QUANT:-none}   kv: $KV_CACHE_DTYPE"
+echo "attn       : ${VLLM_ATTENTION_BACKEND:-auto}   eager: $ENFORCE_EAGER"
 echo "max_seqs   : $MAX_NUM_SEQS   prefix_cache: $PREFIX_CACHE   reasoning: ${REASONING_PARSER:-off}"
 
 PREFIX_FLAG=""; [[ "$PREFIX_CACHE" == "on" ]] && PREFIX_FLAG="--enable-prefix-caching"
@@ -42,6 +66,7 @@ exec vllm serve "$MODEL" \
     --kv-cache-dtype "$KV_CACHE_DTYPE" \
     --max-num-seqs "$MAX_NUM_SEQS" \
     $PREFIX_FLAG \
+    $EAGER_FLAG \
     ${REASONING_PARSER:+--reasoning-parser "$REASONING_PARSER"} \
     ${API_KEY:+--api-key "$API_KEY"} \
     --host 0.0.0.0 --port "$PORT"

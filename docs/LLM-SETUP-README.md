@@ -86,6 +86,15 @@ Override any: `TEMP`, `TOP_P`, `TOP_K`, `MIN_P`, `PRESENCE`, `REPEAT_PEN`.
 ## Switch "model" presets (context window + KV quant)
 Same Qwen3.8-27B model, model id stays `qwen3-vl` — only ctx/KV change.
 Parallel slots default to 1; pass a 2nd arg to change it.
+
+> **The `start-model.sh` commands below are BROKEN — use the panel or `llm switch`.**
+> That script carries its own hardcoded preset table (unrelated to `config/presets.json`)
+> and never sets `MDIR`, so `serve-vlm.sh` falls back to `~/models/Qwen3.8-27B`, which
+> does not exist — every one of these commands exits with "no model .gguf in …".
+> `restart-server.sh` is also stale: it kills the *old* `~/llama.cpp` binary path, so it
+> cannot stop a server the panel started from the sm120 build. Working equivalents:
+> `llm switch <preset>` or the Presets view in the panel. Kept here only so the drift is
+> visible until they are rewritten or deleted.
 ```bash
 bash ~/start-model.sh              # list all presets
 bash ~/start-model.sh q4-96k       # full 96k, safe with images  [recommended]

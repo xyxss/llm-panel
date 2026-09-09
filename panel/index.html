@@ -4,369 +4,1099 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Local LLM Control Panel</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20200%22%20width%3D%22200%22%20height%3D%22200%22%20role%3D%22img%22%20aria-label%3D%22llm-stack%22%3E%3Ctitle%3Ellm-stack%3C%2Ftitle%3E%3Ccircle%20cx%3D%22100%22%20cy%3D%22112%22%20r%3D%2276%22%20fill%3D%22%23f7f6f3%22%2F%3E%3Cg%20transform%3D%22translate%28100%20116%29%20scale%28.92%29%20translate%28-100%20-116%29%22%3E%3Cpath%20d%3D%22M132%2064%20C%20148%2050%20162%2030%20176%206%20C%20172%2044%20160%2070%20144%2086%20Z%22%20fill%3D%22%23f7f6f3%22%20stroke%3D%22%2317181b%22%20stroke-width%3D%2211%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cpath%20d%3D%22M116%2058%20C%20141%2058%20159%2077%20159%20102%20C%20159%20124%20148%20141%20128%20148%20C%20114%20153%20100%20155%2088%20158%20C%2070%20163%2044%20156%2040%20136%20C%2036%20119%2050%20108%2065%20104%20C%2077%20100%2082%2092%2086%2082%20C%2092%2066%20102%2058%20116%2058%20Z%22%20fill%3D%22%23f7f6f3%22%20stroke%3D%22%2317181b%22%20stroke-width%3D%2211%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cellipse%20cx%3D%22112%22%20cy%3D%22100%22%20rx%3D%228%22%20ry%3D%229.5%22%20fill%3D%22%2317181b%22%2F%3E%3Ccircle%20cx%3D%2272%22%20cy%3D%22134%22%20r%3D%2211%22%20fill%3D%22%23b8453a%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
   :root{
-    --bg:#0e1116; --panel:#161b22; --panel2:#1c2230; --line:#2a3240; --line2:#3a4658;
-    --fg:#e6edf3; --muted:#9aa7b4; --accent:#4f9cff; --accent2:#7c5cff;
-    --ok:#3fb950; --warn:#e3b341; --bad:#f85149; --chip:#20283a;
-    --shadow:0 6px 24px rgba(0,0,0,.35);
+    --page:#f6f6f7; --surface:#ffffff; --sidebar:#ffffff; --inset:#fafafa; --chip:#f2f2f4;
+    --line:#e7e7ea; --line-soft:#eeeef1; --control:#dcdce1;
+    --ink:#17181b; --ink2:#45474e; --muted:#64666e; --muted2:#8a8c94; --faint:#b3b5bd;
+    --accent:#4b3fd4; --accent-hover:#3a30ac; --accent-soft:#eeecfd; --accent-line:#d6d0f8; --accent-tint:#faf9ff;
+    --teal:#0e8f88; --teal-soft:#e6f5f4; --teal-line:#c5e8e5;
+    --ok:#16794f; --ok-soft:#e9f5ee; --ok-line:#cbe6d7;
+    --warn:#9a6a05; --warn-soft:#fbf3e0; --warn-line:#eddfb8;
+    --bad:#c0392f; --bad-soft:#fdeceb; --bad-line:#f4d3cf;
+    --on-accent:#ffffff;
+    --shadow:0 1px 2px rgba(23,24,27,.04);
+    --shadow-lg:0 14px 34px -20px rgba(23,24,27,.4);
+    --log-bg:#17181b; --log-fg:#a8abb3; --log-hi:#d6d7dd;
   }
-  @media (prefers-color-scheme: light){
-    :root{ --bg:#f5f7fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#e2e8f0; --line2:#cfd8e3;
-      --fg:#141a22; --muted:#5a6673; --chip:#eef2f8; --shadow:0 6px 20px rgba(20,30,50,.10);}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --page:#131316; --surface:#1c1d21; --sidebar:#17191d; --inset:#232429; --chip:#26272c;
+      --line:#2f3138; --line-soft:#2c2e34; --control:#3a3c44;
+      --ink:#ececef; --ink2:#c2c4cb; --muted:#9a9ca4; --muted2:#7e808a; --faint:#6b6d76;
+      --accent:#8b7dff; --accent-hover:#a99eff; --accent-soft:#221f3d; --accent-line:#3a3470; --accent-tint:#1d1b2e;
+      --teal:#35b3a8; --teal-soft:#12302e; --teal-line:#1e4b47;
+      --ok:#43b581; --ok-soft:#16281f; --ok-line:#245139;
+      --warn:#d8a53a; --warn-soft:#2c2313; --warn-line:#574526;
+      --bad:#ef6a5f; --bad-soft:#2c1a19; --bad-line:#5c2f2b;
+      --on-accent:#17181b;
+      --shadow:0 1px 2px rgba(0,0,0,.4);
+      --shadow-lg:0 14px 34px -20px rgba(0,0,0,.7);
+      --log-bg:#0d0d0f; --log-fg:#a8abb3; --log-hi:#d6d7dd;
+    }
   }
+  :root[data-theme="dark"]{
+    --page:#131316; --surface:#1c1d21; --sidebar:#17191d; --inset:#232429; --chip:#26272c;
+    --line:#2f3138; --line-soft:#2c2e34; --control:#3a3c44;
+    --ink:#ececef; --ink2:#c2c4cb; --muted:#9a9ca4; --muted2:#7e808a; --faint:#6b6d76;
+    --accent:#8b7dff; --accent-hover:#a99eff; --accent-soft:#221f3d; --accent-line:#3a3470; --accent-tint:#1d1b2e;
+    --teal:#35b3a8; --teal-soft:#12302e; --teal-line:#1e4b47;
+    --ok:#43b581; --ok-soft:#16281f; --ok-line:#245139;
+    --warn:#d8a53a; --warn-soft:#2c2313; --warn-line:#574526;
+    --bad:#ef6a5f; --bad-soft:#2c1a19; --bad-line:#5c2f2b;
+    --on-accent:#17181b;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    --shadow-lg:0 14px 34px -20px rgba(0,0,0,.7);
+    --log-bg:#0d0d0f; --log-fg:#a8abb3; --log-hi:#d6d7dd;
+  }
+
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);
-    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,sans-serif;}
-  a{color:var(--accent)}
-  .wrap{max-width:1060px;margin:0 auto;padding:20px 18px 60px}
-  header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:14px}
-  h1{font-size:19px;margin:0;font-weight:650;letter-spacing:.2px}
-  h1 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:middle;background:var(--muted)}
-  .sub{color:var(--muted);font-size:12.5px}
+  body{margin:0;background:var(--page);color:var(--ink);
+    font:14px/1.5 'IBM Plex Sans',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{color:var(--accent-hover)}
+  code,.mono,pre{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* ---- shell ---- */
+  .app{display:flex;min-height:100vh}
+  .side{width:252px;flex:none;background:var(--sidebar);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;padding:22px 16px 18px;position:sticky;top:0;height:100vh;overflow-y:auto}
+  .brand{display:flex;align-items:center;gap:11px;padding:0 6px 20px}
+  .brand .mark{width:34px;height:34px;flex:none;display:flex;align-items:center;justify-content:center;overflow:visible}
+  .brand .bname{font-size:14px;font-weight:600;letter-spacing:-.1px}
+  .brand .bsub{font-size:11px;color:var(--muted)}
+  .sidestat{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);
+    background:var(--inset);border-radius:10px;margin-bottom:20px;font-size:12px;color:var(--muted)}
+  .sidestat .dot{width:7px;height:7px;flex:none;border-radius:999px;background:var(--muted2)}
+  .sidestat #hsub{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  nav.nav{display:flex;flex-direction:column;gap:18px}
+  .navgroup{display:flex;flex-direction:column;gap:2px}
+  .navlabel{font-size:10.5px;font-weight:600;letter-spacing:.9px;text-transform:uppercase;color:var(--muted2);padding:0 10px 6px}
+  .navitem{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;color:var(--ink2);
+    font-size:13px;font-weight:500;cursor:pointer}
+  .navitem:hover{background:var(--chip);color:var(--ink)}
+  .navitem.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .sidefoot{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding-top:18px}
+  .keybox{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--line);
+    background:var(--inset);border-radius:10px}
+  .keybox input{background:transparent;border:0;color:var(--ink);outline:none;width:100%;min-width:0;flex:1;
+    font:12px 'IBM Plex Mono',ui-monospace,monospace}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;gap:14px;padding:16px 32px;background:var(--surface);
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+  .topbar h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.2px}
+  .topbar .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
   .spacer{flex:1}
-  .keybox{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);
-    border-radius:9px;padding:5px 8px}
-  .keybox input{background:transparent;border:0;color:var(--fg);outline:none;width:150px;font:12px monospace}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
-  .grid{display:grid;gap:14px}
-  @media(min-width:720px){.two{grid-template-columns:1fr 1fr}}
-  .label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px}
-  .big{font-size:26px;font-weight:700;line-height:1.15}
+  .content{padding:24px 32px 48px;display:flex;flex-direction:column;gap:16px}
+  .view{display:none;flex-direction:column;gap:24px}
+  .view.on{display:flex}
+  .sec{display:flex;flex-direction:column;gap:12px;scroll-margin-top:88px}
+  .sechead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  h2{margin:0;font-size:13.5px;font-weight:600;letter-spacing:-.1px;color:var(--ink);text-transform:none}
+  .sechead .hint{font-size:12px;color:var(--muted)}
+
+  /* ---- surfaces ---- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow)}
+  .grid{display:grid;gap:16px}
+  @media(min-width:900px){.two{grid-template-columns:1fr 1fr}.three{grid-template-columns:2fr 1fr}}
   .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted)}
-  .chip.on{color:var(--fg)}
-  .kv{display:flex;gap:18px;flex-wrap:wrap;margin-top:6px}
-  .kv div .label{margin-bottom:2px}
-  .kv b{font-size:15px;font-weight:650}
-  /* vram bar */
-  .bar{height:12px;border-radius:7px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;position:relative}
-  .bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .5s}
-  .bar.warn>span{background:linear-gradient(90deg,#e3b341,#f0883e)}
-  .bar.bad>span{background:linear-gradient(90deg,#f85149,#da3633)}
-  .barwrap .row{justify-content:space-between;font-size:12px;color:var(--muted);margin-top:5px}
-  /* health chip */
-  .health{font-weight:600}
-  .health.ready{color:var(--ok)} .health.loading{color:var(--warn)} .health.down{color:var(--bad)}
-  h2{font-size:14px;margin:22px 2px 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
-  /* preset cards */
-  .presets{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(232px,1fr))}
-  .preset{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px 13px 12px;position:relative;transition:border-color .15s,transform .1s}
-  .preset:hover{border-color:var(--line2)}
-  .preset.live{border-color:var(--ok);box-shadow:0 0 0 1px var(--ok) inset}
-  .preset .name{font-weight:700;font-size:15px}
-  .preset .tag{font-size:10.5px;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.5px}
-  .tag.recommended{background:rgba(63,185,80,.16);color:var(--ok)}
-  .tag.tight{background:rgba(227,179,65,.16);color:var(--warn)}
-  .tag.quality{background:rgba(79,156,255,.16);color:var(--accent)}
-  .preset .note{color:var(--muted);font-size:12px;min-height:32px;margin:6px 0}
-  .specs{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:12px;margin-bottom:9px}
-  .specs .label{margin:0}
-  .minibar{height:6px;border-radius:4px;background:var(--panel2);overflow:hidden;margin:2px 0 9px}
-  .minibar>span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .label{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--muted2);margin-bottom:5px}
+  .big{font-size:26px;font-weight:600;letter-spacing:-.6px;line-height:1.15;font-family:'IBM Plex Mono',ui-monospace,monospace}
+  .muted{color:var(--muted)}
+  .foot{margin-top:8px;color:var(--muted);font-size:12px;line-height:1.6}
+
+  .chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12px;color:var(--muted)}
+  .chip.on{color:var(--ink2)}
+  .chip.health{font-weight:600;display:inline-flex;align-items:center;gap:7px}
+  .chip.health::before{content:"";width:6px;height:6px;border-radius:999px;background:currentColor}
+  .chip.health.ready{color:var(--ok);background:var(--ok-soft);border-color:var(--ok-line)}
+  .chip.health.loading{color:var(--warn);background:var(--warn-soft);border-color:var(--warn-line)}
+  .chip.health.down{color:var(--bad);background:var(--bad-soft);border-color:var(--bad-line)}
+
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px;margin-top:14px}
+  .kv>div{background:var(--inset);border:1px solid var(--line-soft);border-radius:10px;padding:9px 11px}
+  .kv .label{font-size:10.5px;letter-spacing:.7px;margin-bottom:3px}
+  .kv b{font-size:14px;font-weight:600;font-family:'IBM Plex Mono',ui-monospace,monospace}
+
+  /* ---- meters ---- */
+  .bar{height:10px;border-radius:6px;background:var(--inset);border:1px solid var(--line);overflow:hidden}
+  .bar>span{display:block;height:100%;background:var(--accent);transition:width .5s}
+  .bar.warn>span{background:var(--warn)}
+  .bar.bad>span{background:var(--bad)}
+  .barwrap .row{justify-content:space-between;font-size:12px;color:var(--muted);margin-top:8px}
+  .minibar{height:5px;border-radius:3px;background:var(--line-soft);overflow:hidden;margin:2px 0 4px}
+  .minibar>span{display:block;height:100%;background:var(--accent)}
   .minibar.warn>span{background:var(--warn)} .minibar.bad>span{background:var(--bad)}
-  .pbtns{display:flex;gap:7px}
-  button{font:inherit;cursor:pointer;border-radius:9px;border:1px solid var(--line2);
-    background:var(--panel2);color:var(--fg);padding:8px 12px;transition:filter .12s,background .12s}
-  button:hover{filter:brightness(1.12)}
+  .mbar{height:5px;border-radius:3px;background:var(--line);overflow:hidden}
+  .mbar>span{display:block;height:100%;width:0;background:var(--accent);transition:width .5s}
+  .mbar.warn>span{background:var(--warn)} .mbar.bad>span{background:var(--bad)}
+
+  /* ---- tables (cc switch / cc connect views) ---- */
+  .tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .tbl th{font-size:10.5px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--muted2);
+    text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}
+  .tbl td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--ink2)}
+  .tbl tr:last-child td{border-bottom:0}
+  .tbl .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px}
+
+  /* ---- monitor ---- */
+  .mon{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
+  .montile{background:var(--inset);border:1px solid var(--line-soft);border-radius:11px;padding:12px 13px;
+    display:flex;flex-direction:column;gap:8px}
+  .montile .mlab{font-size:10.5px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--muted2)}
+  .montile .mval{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',ui-monospace,monospace}
+  .montile .mval b{font-size:19px;font-weight:600;letter-spacing:-.4px;color:var(--ink)}
+
+  /* ---- cards in grids ---- */
+  .presets{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(268px,1fr))}
+  .preset{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:15px 16px;
+    position:relative;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:9px}
+  .preset:hover{border-color:var(--control)}
+  .preset.live{border-color:var(--ok);box-shadow:0 0 0 1px var(--ok) inset,var(--shadow)}
+  .livebadge{display:none;flex:none;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;background:var(--ok);color:var(--surface);white-space:nowrap}
+  .preset .name{font-weight:600;font-size:14.5px;letter-spacing:-.1px;word-break:break-word;
+    font-family:'IBM Plex Mono',ui-monospace,monospace}
+  .preset .note{color:var(--muted);font-size:12px;line-height:1.45;min-height:34px;margin:0;
+    display:flex;flex-direction:column;gap:2px;min-width:0}
+  .preset .note .mono{color:var(--ink2);font-size:11.5px}
+  .pmodel{font-size:11px;color:var(--muted2);margin-top:-4px}
+  .trunc{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .preset .tag{font-size:10px;font-weight:700;letter-spacing:.6px;padding:3px 8px;border-radius:999px;
+    text-transform:uppercase;white-space:nowrap;border:1px solid transparent}
+  .tag.recommended{background:var(--ok-soft);color:var(--ok);border-color:var(--ok-line)}
+  .tag.tight{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-line)}
+  .tag.extreme{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-line)}
+  .tag.text{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+  .tag.coding{background:var(--teal-soft);color:var(--teal);border-color:var(--teal-line)}
+  .tag.quality{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+  .tag.agent{background:var(--teal-soft);color:var(--teal);border-color:var(--teal-line)}
+  .tag.vision{background:var(--chip);color:var(--ink2);border-color:var(--line)}
+  /* a preset field that the selected model has no use for: greyed, read-only, and
+     LEFT ALONE on save so switching models never rewrites the other family's knobs */
+  .field.na{opacity:.42}
+  .field.na input,.field.na select{pointer-events:none;background:var(--chip)}
+  .field .na-why{font-size:10.5px;color:var(--warn);letter-spacing:.02em}
+  .specs{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:12px}
+  .specs .label{margin:0;font-size:10px}
+  .specs b{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600}
+  .pbtns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .star{display:inline-flex;align-items:center;gap:5px;flex:none;color:var(--accent)}
+  .star:empty{display:none}
+  .star svg{display:block}
+  .cardhead{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  #presetGrid .preset{cursor:grab}
+  #presetGrid .preset.dragging{opacity:.4;cursor:grabbing}
+  .grip{flex:none;color:var(--muted2);opacity:0;transition:opacity .12s;margin-top:2px}
+  .preset:hover .grip{opacity:1}
+  @media(hover:none){.grip{opacity:.6}}
+
+  /* ---- profiles ---- */
+  .profiles{display:grid;gap:16px}
+  @media(min-width:820px){.profiles{grid-template-columns:1fr 1fr}}
+  .profile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;
+    box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
+  .profile .ptitle{font-weight:600;font-size:15px;letter-spacing:-.1px;display:flex;align-items:center;gap:9px}
+  .profile .ptitle svg{flex:none}
+
+  /* ---- controls ---- */
+  button{font:inherit;cursor:pointer;border-radius:9px;border:1px solid var(--control);
+    background:var(--surface);color:var(--ink2);padding:8px 15px;font-weight:600;font-size:13px;
+    transition:background .12s,border-color .12s,color .12s}
+  button:hover:not(:disabled){background:var(--chip);color:var(--ink)}
   button:disabled{opacity:.5;cursor:not-allowed}
-  button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;font-weight:600}
+  button.primary{background:var(--accent);border-color:transparent;color:var(--on-accent)}
+  button.primary:hover:not(:disabled){background:var(--accent-hover);color:var(--on-accent)}
   button.ghost{background:transparent}
-  button.sm{padding:5px 9px;font-size:12px}
-  .star{position:absolute;top:10px;right:11px;font-size:12px;letter-spacing:1px;color:var(--ok);font-weight:600;white-space:nowrap;pointer-events:none}
-  .cardhead{padding-right:56px}          /* reserve room for the absolute .star badge */
-  .preset .name{word-break:break-word}   /* long endpoint/engine names wrap instead of underlapping */
-  /* profiles */
-  .profiles{display:grid;gap:12px}
-  @media(min-width:640px){.profiles{grid-template-columns:1fr 1fr}}
-  .profile{border:1px solid var(--line);border-radius:13px;padding:14px;background:linear-gradient(180deg,var(--panel),var(--panel2))}
-  .profile .ptitle{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
-  .profile select{background:var(--panel);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:6px 8px;font:inherit}
-  /* custom builder */
-  .field{margin:10px 0}
-  input[type=range]{width:100%}
-  select,input[type=number]{background:var(--panel2);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:7px 9px;font:inherit}
-  .estline{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:13px}
-  .estval{font-weight:700;font-size:16px}
-  /* log */
-  pre.log{background:#0b0e13;color:#c9d4df;border:1px solid var(--line);border-radius:11px;padding:12px;
-    font:11.5px/1.5 ui-monospace,Menlo,Consolas,monospace;max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word}
-  @media (prefers-color-scheme: light){pre.log{background:#0e1420;color:#cdd8e4}}
-  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel);
-    border:1px solid var(--line2);border-radius:10px;padding:11px 16px;box-shadow:var(--shadow);max-width:90%;
-    opacity:0;pointer-events:none;transition:opacity .2s, transform .2s}
+  button.sm{padding:5px 11px;font-size:12px;border-radius:8px}
+  button.icon{padding:0;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center}
+  button.danger{color:var(--bad);border-color:var(--bad-line)}
+  button.danger:hover:not(:disabled){background:var(--bad-soft);color:var(--bad)}
+
+  input,select,textarea{background:var(--surface);color:var(--ink);border:1px solid var(--control);
+    border-radius:9px;padding:8px 11px;font:13px/1.4 'IBM Plex Sans',system-ui,sans-serif}
+  input[type=number],input[type=text],input[type=password],select{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px}
+  input::placeholder,textarea::placeholder{color:var(--faint)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  select{cursor:pointer}
+  input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;padding:0;border:0;height:20px}
+  input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:3px;background:var(--line-soft)}
+  input[type=range]::-moz-range-track{height:5px;border-radius:3px;background:var(--line-soft)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:999px;
+    background:var(--surface);border:2px solid var(--accent);margin-top:-7px;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:999px;background:var(--surface);border:2px solid var(--accent)}
+  input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
+  .field{display:flex;flex-direction:column;gap:6px;margin:0}
+  .field>input,.field>select,.field>textarea{width:100%}
+  .fieldrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+  .check{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink2);cursor:pointer}
+  .estline{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;font-size:13px}
+  .estval{font-weight:600;font-size:22px;letter-spacing:-.5px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+
+  .note-box{display:flex;align-items:flex-start;gap:9px;padding:11px 13px;border-radius:10px;font-size:12px;line-height:1.5;
+    background:var(--inset);border:1px solid var(--line-soft);color:var(--muted)}
+  .note-box.accent{background:var(--accent-soft);border-color:var(--accent-line);color:var(--ink2)}
+  .note-box svg{flex:none;margin-top:1px}
+
+  pre.log{background:var(--log-bg);color:var(--log-fg);border:1px solid var(--line);border-radius:12px;padding:16px 18px;
+    font-size:11.5px;line-height:1.7;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:0}
+
+  .banner{display:none;align-items:center;gap:10px;background:var(--warn-soft);border:1px solid var(--warn-line);
+    color:var(--ink2);border-radius:11px;padding:11px 15px;font-size:13px}
+  .banner.show{display:flex}
+  .spin{width:14px;height:14px;flex:none;border-radius:50%;border:2px solid var(--warn);border-top-color:transparent;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface);
+    border:1px solid var(--control);border-radius:11px;padding:11px 16px;box-shadow:var(--shadow-lg);max-width:90%;
+    font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
   .toast.ok{border-color:var(--ok)} .toast.bad{border-color:var(--bad)}
-  .banner{display:none;align-items:center;gap:10px;background:rgba(227,179,65,.12);border:1px solid var(--warn);
-    color:var(--fg);border-radius:11px;padding:10px 14px;margin-bottom:14px;font-size:13px}
-  .banner.show{display:flex}
-  .spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--warn);border-top-color:transparent;animation:sp 1s linear infinite}
-  @keyframes sp{to{transform:rotate(360deg)}}
-  .muted{color:var(--muted)}
-  .foot{margin-top:26px;color:var(--muted);font-size:12px}
+
+  @media(max-width:860px){
+    .app{flex-direction:column}
+    .side{width:auto;height:auto;position:static;border-right:0;border-bottom:1px solid var(--line)}
+    .content,.topbar{padding-left:18px;padding-right:18px}
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app">
 
-  <header>
-    <div>
-      <h1><span class="dot" id="hdot"></span>Local LLM Control Panel</h1>
-      <div class="sub" id="hsub">RTX 5080 · llama.cpp · loading…</div>
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="side">
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 200 200" width="34" height="34" aria-hidden="true"><title>llm-stack</title><circle cx="100" cy="112" r="76" fill="#f7f6f3"/><g transform="translate(100 116) scale(.92) translate(-100 -116)"><path d="M132 64 C 148 50 162 30 176 6 C 172 44 160 70 144 86 Z" fill="#f7f6f3" stroke="#17181b" stroke-width="11" stroke-linejoin="round"/><path d="M116 58 C 141 58 159 77 159 102 C 159 124 148 141 128 148 C 114 153 100 155 88 158 C 70 163 44 156 40 136 C 36 119 50 108 65 104 C 77 100 82 92 86 82 C 92 66 102 58 116 58 Z" fill="#f7f6f3" stroke="#17181b" stroke-width="11" stroke-linejoin="round"/><ellipse cx="112" cy="100" rx="8" ry="9.5" fill="#17181b"/><circle cx="72" cy="134" r="11" fill="#b8453a"/></g></svg></div>
+      <div>
+        <div class="bname">LLM Control</div>
+        <div class="bsub mono" id="brandSub">local + cloud</div>
+      </div>
     </div>
-    <div class="spacer"></div>
-    <div class="keybox" title="API key from ~/.vlm_api_key — needed to apply changes. Stored only in this browser.">
-      <span class="muted">🔑</span>
-      <input id="apikey" type="password" placeholder="API key" autocomplete="off" spellcheck="false">
-      <button class="sm ghost" id="savekey">save</button>
+
+    <div class="sidestat"><span class="dot" id="hdot"></span><span id="hsub">loading…</span></div>
+
+    <nav class="nav">
+      <div class="navgroup">
+        <a class="navitem on" data-view="overview">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>Overview</a>
+        <a class="navitem" data-view="models">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 16 9 5 9-5"/><path d="m3 12 9 5 9-5"/></svg>Models &amp; endpoints</a>
+        <a class="navitem" data-view="presets">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2.2" fill="var(--sidebar)"/><circle cx="15" cy="12" r="2.2" fill="var(--sidebar)"/><circle cx="8" cy="17" r="2.2" fill="var(--sidebar)"/></svg>Presets</a>
+        <a class="navitem" data-view="runtime">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg>Runtime &amp; thinking</a>
+        <a class="navitem" data-view="log">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="m6.5 9.5 3 2.5-3 2.5"/><path d="M12.5 15h5"/></svg>Server log</a>
+      </div>
+      <div class="navgroup" style="border-top:1px solid var(--line);padding-top:16px">
+        <a class="navitem" data-view="command">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="m8 10 2.5 2L8 14"/><path d="M13 14h3"/></svg>Command &amp; log</a>
+        <a class="navitem" data-view="bench">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>Benchmark</a>
+        <a class="navitem" data-view="power">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 4v8"/><path d="M7.4 6.9a7 7 0 1 0 9.2 0"/></svg>Power</a>
+        <a class="navitem" data-view="ccswitch">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 6l4 3"/><path d="m16 21 4-3-4-3"/><path d="M20 3H4v18h16V3Z"/></svg>CC Switch</a>
+        <a class="navitem" data-view="ccconnect">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>CC Connect</a>
+      </div>
+    </nav>
+
+    <div class="sidefoot">
+      <div class="keybox" title="API key from ~/.vlm_api_key — needed to apply changes. Stored only in this browser.">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.7" stroke-linecap="round"><circle cx="8.5" cy="15.5" r="3.8"/><path d="m11.2 12.8 7.6-7.6M16.2 5.2l2 2M13.6 7.8l2 2"/></svg>
+        <input id="apikey" type="password" placeholder="API key" autocomplete="off" spellcheck="false">
+        <button class="sm ghost" id="savekey">save</button>
+      </div>
     </div>
-  </header>
+  </aside>
 
-  <div class="banner" id="switchBanner"><span class="spin"></span><span id="switchMsg"></span></div>
-  <div class="banner" id="refreshBanner" style="border-color:var(--accent);background:rgba(79,156,255,.12)">
-    <span>🔄 The panel was updated on the server — reload to get the new version.</span>
-    <span class="spacer"></span>
-    <button class="sm primary" id="reloadBtn">Reload now</button>
-  </div>
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="pageTitle">Overview</h1>
+        <div class="sub" id="pageSub">What is serving right now, and how the box is holding up</div>
+      </div>
+      <div class="spacer"></div>
+      <span class="chip health" id="chHealth">health: —</span>
+      <span class="chip mono" id="chTps">— t/s</span>
+      <button class="icon" id="themeBtn" title="Switch light / dark"></button>
+      <button class="danger" id="btnStop" title="Stop the server (frees the GPU)">Stop server</button>
+    </header>
 
-  <!-- STATUS -->
-  <div class="grid two" style="margin-bottom:6px">
-    <div class="card">
-      <div class="label">Currently serving</div>
-      <div class="big" id="curModel">—</div>
-      <div class="kv" id="curKv"></div>
-      <div class="row" style="margin-top:12px">
-        <span class="chip" id="chHealth">health: —</span>
-        <span class="chip" id="chTps">— t/s</span>
+    <div class="content">
+      <div class="banner" id="switchBanner"><span class="spin"></span><span id="switchMsg"></span></div>
+      <div class="banner" id="powerBanner" style="background:var(--bad-soft);border-color:var(--bad-line)">
+        <span class="spin" style="border-color:var(--bad);border-top-color:transparent"></span>
+        <span id="powerMsg"></span>
         <span class="spacer"></span>
-        <button class="sm ghost" id="btnStop" title="Stop the server (frees the GPU)">Stop server</button>
+        <button class="sm" id="powerCancel">Cancel</button>
       </div>
-    </div>
-    <div class="card barwrap">
-      <div class="label">GPU memory · <span id="gpuName">RTX 5080</span></div>
-      <div class="big" id="vramBig">—</div>
-      <div class="bar" id="vramBar"><span style="width:0%"></span></div>
-      <div class="row"><span id="vramL">used —</span><span id="vramR">— free · <span id="gpuUtil">—</span>% · <span id="gpuTemp">—</span>°C</span></div>
-    </div>
-  </div>
-
-  <!-- ROUTER + ENDPOINTS -->
-  <div class="card" style="margin-top:14px;border-color:var(--accent)">
-    <div class="row" style="justify-content:space-between">
-      <div>
-        <div class="label">One endpoint for every tool — point your harness here</div>
-        <div class="row"><code id="routerUrl" style="font-size:15px;font-weight:700">…</code>
-          <button class="sm ghost" id="copyRouter">copy</button></div>
-        <div class="muted" style="font-size:12px;margin-top:3px">Any model id works. The panel decides which backend actually answers. Legacy direct URL <code id="directUrl">:8000/v1</code> still points only at the local model.</div>
+      <div class="banner" id="refreshBanner" style="background:var(--accent-soft);border-color:var(--accent-line)">
+        <span>The panel was updated on the server — reload to get the new version.</span>
+        <span class="spacer"></span>
+        <button class="sm primary" id="reloadBtn">Reload now</button>
       </div>
-      <div style="text-align:right">
-        <div class="label">Active backend</div>
-        <div class="big" id="activeEp" style="font-size:18px">—</div>
-      </div>
-    </div>
-  </div>
 
-  <h2>Models &amp; endpoints — local + cloud</h2>
-  <div class="presets" id="endpointGrid"></div>
-  <div class="row" style="margin-top:10px">
-    <button class="ghost sm" id="addEpBtn">＋ Add a cloud / custom OpenAI-compatible endpoint</button>
-  </div>
-  <div class="card" id="addEpForm" style="display:none;margin-top:12px">
-    <div class="grid two">
-      <div class="field"><div class="label">Name / id</div><input id="epId" placeholder="e.g. my-openrouter" style="width:100%"></div>
-      <div class="field"><div class="label">Label</div><input id="epLabel" placeholder="OpenRouter — Claude" style="width:100%"></div>
-      <div class="field"><div class="label">Base URL (OpenAI-compatible, ends in /v1)</div><input id="epBase" placeholder="https://openrouter.ai/api/v1" style="width:100%"></div>
-      <div class="field"><div class="label">Model id</div><input id="epModel" placeholder="anthropic/claude-3.5-sonnet" style="width:100%"></div>
-      <div class="field"><div class="label">API key (stored server-side in secrets.json, chmod 600)</div><input id="epKey" type="password" placeholder="sk-…" style="width:100%"></div>
-      <div class="field row" style="align-items:end"><label class="muted" style="font-size:13px"><input type="checkbox" id="epVision"> supports vision</label></div>
-    </div>
-    <button class="primary sm" id="saveEp">Save endpoint</button>
-    <button class="ghost sm" id="cancelEp">Cancel</button>
-  </div>
+      <!-- ============ OVERVIEW ============ -->
+      <section class="view on" id="view-overview">
 
-  <!-- ENGINE -->
-  <h2>Inference engine — the local serving backend</h2>
-  <div class="presets" id="engineGrid"></div>
-  <div class="muted" style="font-size:12px;margin-top:8px">Only ONE engine can hold the 16 GB GPU at a time. Switching stops the current one and starts the other. llama.cpp is the only engine that runs your GGUF vision model. vLLM/Ollama options below are saved even before they're installed, and used when you switch to them.</div>
-  <div class="card" id="engineOpts" style="display:none;margin-top:12px;border-color:var(--accent2)">
-    <div class="row" style="justify-content:space-between">
-      <div class="label" id="engineOptsTitle" style="font-size:13px;color:var(--fg)">Engine options</div>
-      <button class="ghost sm" id="engineOptsClose">close</button>
-    </div>
-    <div class="presets" id="engineOptsBody" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-top:8px"></div>
-    <div class="muted" id="engineOptsNote" style="font-size:12px;margin-top:8px"></div>
-    <div class="row" style="justify-content:flex-end;margin-top:8px">
-      <button class="primary sm" id="engineOptsSave">Save options</button>
-    </div>
-  </div>
-
-  <!-- PROFILES -->
-  <h2>Local model presets — Default vs Testing</h2>
-  <div class="profiles">
-    <div class="profile">
-      <div class="ptitle">⭐ Default <span class="muted" style="font-weight:400">— your stable everyday preset</span></div>
-      <div class="field row">
-        <select id="selDefault"></select>
-        <button class="primary" id="applyDefault">Apply Default</button>
-      </div>
-      <div class="muted" id="defMeta" style="font-size:12.5px"></div>
-    </div>
-    <div class="profile">
-      <div class="ptitle">🧪 Testing <span class="muted" style="font-weight:400">— experiment with bigger context / KV</span></div>
-      <div class="field row">
-        <select id="selTesting"></select>
-        <button class="primary" id="applyTesting">Apply Testing</button>
-      </div>
-      <div class="muted" id="testMeta" style="font-size:12.5px"></div>
-    </div>
-  </div>
-
-  <!-- PRESETS -->
-  <h2>All presets</h2>
-  <div class="presets" id="presetGrid"></div>
-  <div class="row" style="margin-top:10px"><button class="ghost sm" id="newPresetBtn">＋ New preset</button>
-    <span class="muted" style="font-size:12px">✏️ edits a preset · ⭐/🧪 set it as your Default/Testing profile · Apply loads it now</span></div>
-  <div class="card" id="presetEditor" style="display:none;margin-top:12px;border-color:var(--accent2)">
-    <div class="row" style="justify-content:space-between"><div class="label" id="presetEditorTitle" style="color:var(--fg);font-size:13px">Edit preset</div><button class="ghost sm" id="presetEditorClose">close</button></div>
-    <div class="presets" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-top:8px">
-      <div><div class="label">id / name</div><input id="pe_id" style="width:100%"></div>
-      <div><div class="label">model <span class="muted">(from ~/models)</span></div><select id="pe_model" style="width:100%"></select></div>
-      <div><div class="label">KV cache</div><select id="pe_kv" style="width:100%"><option value="q4_0">q4_0</option><option value="q8_0">q8_0</option><option value="f16">f16</option></select></div>
-      <div><div class="label">context (tokens)</div><input id="pe_ctx" type="number" step="1024" style="width:100%"></div>
-      <div><div class="label">parallel slots</div><input id="pe_parallel" type="number" min="1" style="width:100%"></div>
-      <div><div class="label">gpu layers (ngl)</div><input id="pe_ngl" type="number" style="width:100%"></div>
-      <div><div class="label">thinking</div><select id="pe_thinking" style="width:100%"><option value="">(inherit global)</option><option value="auto">auto</option><option value="on">on</option><option value="off">off</option></select></div>
-      <div><div class="label">reason effort</div><select id="pe_reason_effort" style="width:100%"><option value="">(inherit)</option><option value="default">default</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></div>
-      <div><div class="label">context shift</div><select id="pe_context_shift" style="width:100%"><option value="">(inherit)</option><option value="off">off</option><option value="on">on</option></select></div>
-      <div><div class="label">cache-reuse</div><input id="pe_cache_reuse" type="number" min="0" placeholder="(inherit)" style="width:100%"></div>
-      <div><div class="label">image-min-tokens</div><input id="pe_image_min_tokens" type="number" min="0" placeholder="(inherit)" style="width:100%"></div>
-      <div><div class="label">tag <span class="muted">(colour badge)</span></div><input id="pe_tag" placeholder="recommended / tight / agent / vision / quality" style="width:100%"></div>
-    </div>
-    <div class="field"><div class="label">note</div><input id="pe_note" style="width:100%"></div>
-    <div class="estline"><span class="muted" id="pe_est"></span></div>
-    <div class="row" style="justify-content:space-between;margin-top:8px">
-      <button class="ghost sm" id="pe_delete" style="color:var(--bad);border-color:var(--bad)">Delete preset</button>
-      <button class="primary sm" id="pe_save">Save preset</button>
-    </div>
-  </div>
-
-  <!-- CUSTOM -->
-  <h2>Custom preset</h2>
-  <div class="card">
-    <div class="grid two">
-      <div>
-        <div class="field">
-          <div class="label">Context window (tokens): <b id="ctxVal">98304</b> <span class="muted" id="ctxPer"></span></div>
-          <input type="range" id="ctxRange" min="8192" max="200704" step="8192" value="98304">
-        </div>
-        <div class="field row">
-          <div>
-            <div class="label">KV cache precision</div>
-            <select id="kvSel">
-              <option value="q4_0">q4_0 — ¼ memory, most context</option>
-              <option value="q8_0">q8_0 — ½ memory, best quality</option>
-              <option value="f16">f16 — full precision (2× memory)</option>
-            </select>
-          </div>
-          <div>
-            <div class="label">Parallel slots</div>
-            <input type="number" id="parSel" min="1" max="8" value="1" style="width:80px">
+        <div class="sec" id="sec-status">
+          <div class="grid three">
+            <div class="card">
+              <div class="label">Currently serving</div>
+              <div class="big" id="curModel">—</div>
+              <div class="kv" id="curKv"></div>
+            </div>
+            <div class="card barwrap">
+              <div class="label">GPU memory · <span id="gpuName">RTX 5080</span></div>
+              <div class="big" id="vramBig">—</div>
+              <div class="bar" id="vramBar"><span style="width:0%"></span></div>
+              <div class="row"><span id="vramL">used —</span><span id="vramR">— free · <span id="gpuUtil">—</span>% · <span id="gpuTemp">—</span>°C</span></div>
+            </div>
           </div>
         </div>
-        <div class="muted" style="font-size:12px" id="kvHint"></div>
-      </div>
-      <div>
-        <div class="label">Estimated VRAM at load</div>
-        <div class="estline"><span class="estval" id="estVal">—</span><span class="muted" id="estOf"></span></div>
-        <div class="minibar" id="estBar"><span style="width:0%"></span></div>
-        <div class="muted" style="font-size:12px" id="estNote"></div>
-        <div class="field muted" style="font-size:12px" id="perSlot"></div>
-        <button class="primary" id="applyCustom" style="margin-top:8px">Apply custom preset</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- THINKING & CONTEXT (llama.cpp runtime) -->
-  <h2>Thinking &amp; context handling <span class="muted" style="text-transform:none;font-weight:400">— llama.cpp runtime (needs a restart to take effect)</span></h2>
-  <div class="card">
-    <div class="grid two">
-      <div>
-        <div class="field">
-          <div class="label">Thinking / reasoning</div>
-          <select id="rt_thinking" style="width:100%">
-            <option value="auto">auto — chat template decides</option>
-            <option value="on">on — always reason (best quality, slower, burns tokens)</option>
-            <option value="off">off — never reason (fast, best for tool-calling agents)</option>
-          </select>
+        <div class="sec" id="sec-monitor">
+          <div class="sechead"><h2>System monitor</h2><span class="hint">live GPU and CPU, polled every 2s</span></div>
+          <div class="card">
+            <div class="mon">
+              <div class="montile"><div class="mlab">GPU util</div><div class="mval"><b id="mGpuUtil">—</b>%</div><div class="mbar" id="mGpuUtilBar"><span></span></div></div>
+              <div class="montile"><div class="mlab">VRAM</div><div class="mval"><b id="mVram">—</b> GB</div><div class="mbar" id="mVramBar"><span></span></div></div>
+              <div class="montile"><div class="mlab">GPU power</div><div class="mval"><b id="mPow">—</b> W</div><div class="mbar" id="mPowBar"><span></span></div></div>
+              <div class="montile"><div class="mlab">GPU temp</div><div class="mval"><b id="mTemp">—</b>°C</div><div class="mbar" id="mTempBar"><span></span></div></div>
+              <div class="montile"><div class="mlab">GPU clock</div><div class="mval"><b id="mClk">—</b> MHz</div><div class="mbar" id="mClkBar"><span></span></div></div>
+              <div class="montile"><div class="mlab">Fan</div><div class="mval"><b id="mFan">—</b>%</div><div class="mbar" id="mFanBar"><span></span></div></div>
+              <div class="montile"><div class="mlab">CPU util</div><div class="mval"><b id="mCpu">—</b>%</div><div class="mbar" id="mCpuBar"><span></span></div></div>
+              <div class="montile"><div class="mlab">Load avg</div><div class="mval"><b id="mLoad">—</b></div><div class="mval" id="mCores" style="font-size:11px"></div></div>
+              <div class="montile"><div class="mlab">RAM</div><div class="mval"><b id="mRam">—</b> GB</div><div class="mbar" id="mRamBar"><span></span></div></div>
+              <div class="montile"><div class="mlab">Tokens/sec</div><div class="mval"><b id="mTps">—</b></div><div class="mval" id="mEngine" style="font-size:11px"></div></div>
+            </div>
+            <div class="row" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft);gap:14px">
+              <div style="width:150px;flex:none">
+                <div style="font-size:12.5px;font-weight:600">GPU power limit</div>
+                <div class="muted" style="font-size:11.5px" id="powNote">applies immediately</div>
+              </div>
+              <input type="range" id="powRange" style="flex:1;min-width:180px;max-width:320px">
+              <b class="mono" id="powVal" style="min-width:62px;font-size:15px">— W</b>
+              <button class="primary sm" id="setPow">Apply</button>
+            </div>
+          </div>
         </div>
-        <div class="field">
-          <div class="label">Reasoning effort <span class="muted">(when thinking on)</span></div>
-          <select id="rt_reason_effort" style="width:100%">
-            <option value="">default</option><option value="low">low</option>
-            <option value="medium">medium</option><option value="high">high</option>
-          </select>
-        </div>
-        <div class="field">
-          <div class="label">Context shift <span class="muted">(what happens when the window fills)</span></div>
-          <select id="rt_context_shift" style="width:100%">
-            <option value="off">off — error when full (RECOMMENDED for agents; harness compacts)</option>
-            <option value="on">on — drop oldest tokens &amp; keep going (corrupts agent state)</option>
-          </select>
-        </div>
-      </div>
-      <div>
-        <div class="field">
-          <div class="label">cache-reuse (tokens) <span class="muted">— KV prefix reuse; 0 disables</span></div>
-          <input type="number" id="rt_cache_reuse" min="0" step="64" style="width:100%">
-        </div>
-        <div class="field">
-          <div class="label">image-min-tokens <span class="muted">— Qwen-VL grounding needs ≥1024</span></div>
-          <input type="number" id="rt_image_min_tokens" min="0" step="128" style="width:100%">
-        </div>
-        <div class="field">
-          <div class="label">extra llama-server flags <span class="muted">(advanced, appended verbatim)</span></div>
-          <input type="text" id="rt_extra_flags" placeholder='e.g. --slots --metrics' style="width:100%">
-        </div>
-        <div class="field muted" id="compactionNote" style="font-size:12px"></div>
-      </div>
-    </div>
-    <div class="row" style="justify-content:flex-end;gap:8px">
-      <button class="ghost sm" id="saveRt">Save (apply on next restart)</button>
-      <button class="primary sm" id="saveRtApply">Save &amp; restart model now</button>
-    </div>
-  </div>
 
-  <!-- OPERATING SETTINGS -->
-  <h2>Operating settings <span class="muted" style="text-transform:none;font-weight:400">— generation defaults the router applies</span></h2>
-  <div class="card">
-    <div class="muted" style="font-size:12.5px;margin-bottom:10px">Applied by the router to <code>/chat/completions</code> for whichever backend is active (local or cloud). By default they fill in only values a client omits — flip “override client” to force them.</div>
-    <div class="presets" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
-      <div><div class="label">temperature</div><input type="number" step="0.05" min="0" max="2" id="g_temperature" style="width:100%"></div>
-      <div><div class="label">top_p</div><input type="number" step="0.05" min="0" max="1" id="g_top_p" style="width:100%"></div>
-      <div><div class="label">top_k</div><input type="number" step="1" min="0" id="g_top_k" style="width:100%"></div>
-      <div><div class="label">min_p</div><input type="number" step="0.01" min="0" max="1" id="g_min_p" style="width:100%"></div>
-      <div><div class="label">max_tokens <span class="muted">(blank = model default)</span></div><input type="number" step="1" min="0" id="g_max_tokens" style="width:100%"></div>
-      <div><div class="label">repeat_penalty</div><input type="number" step="0.01" min="0" id="g_repeat_penalty" style="width:100%"></div>
-      <div><div class="label">presence_penalty</div><input type="number" step="0.1" id="g_presence_penalty" style="width:100%"></div>
-      <div><div class="label">frequency_penalty</div><input type="number" step="0.1" id="g_frequency_penalty" style="width:100%"></div>
-    </div>
-    <div class="field" style="margin-top:12px">
-      <label class="muted" style="font-size:13px"><input type="checkbox" id="g_apply_system"> inject a default system prompt when the client sends none</label>
-      <textarea id="g_system_prompt" rows="2" placeholder="You are a concise, helpful assistant…" style="width:100%;margin-top:6px;background:var(--panel2);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:8px;font:inherit"></textarea>
-    </div>
-    <div class="row" style="justify-content:space-between">
-      <label class="muted" style="font-size:13px"><input type="checkbox" id="g_override_client"> override values the client sets (force these on every request)</label>
-      <button class="primary sm" id="saveGen">Save operating settings</button>
-    </div>
-  </div>
+        <div class="sec" id="sec-router">
+          <div class="sechead"><h2>Router</h2><span class="hint">one endpoint for every tool — the panel picks who answers</span></div>
+          <div class="card" style="border-color:var(--accent-line)">
+            <div class="row" style="align-items:flex-start;gap:24px">
+              <div style="flex:1;min-width:260px">
+                <div class="label">Point your harness here</div>
+                <div class="row">
+                  <code id="routerUrl" style="font-size:17px;font-weight:600;color:var(--ink)">…</code>
+                  <button class="sm" id="copyRouter">Copy</button>
+                </div>
+                <div class="muted" style="font-size:12.5px;margin-top:8px;max-width:620px">Any model id works — the router rewrites it for whichever backend is active. The direct llama.cpp port <code id="directUrl">:8000/v1</code> still reaches only the local model.</div>
+              </div>
+              <div style="text-align:right">
+                <div class="label">Active backend</div>
+                <div style="font-size:17px;font-weight:600;letter-spacing:-.2px" id="activeEp">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-  <!-- LOG -->
-  <h2>Server log <span class="muted" style="text-transform:none;font-weight:400">— live tail of ~/server.log (local model only)</span></h2>
-  <pre class="log" id="log">…</pre>
+      <!-- ============ MODELS ============ -->
+      <section class="view" id="view-models">
 
-  <div class="foot">
-    Panel edits <code>~/serve-vlm.sh</code> knobs live. VRAM estimates are a linear fit of your GPU-measured presets — treat as a guide, watch the log for OOM.
-    Same model id <code>qwen3-vl</code> throughout, so no harness reconfig is ever needed.
+        <div class="sec" id="sec-rescan">
+          <div class="sechead"><h2>Model directory</h2>
+            <span class="hint">re-reads every folder and writes what it finds back into the config</span></div>
+          <div class="card">
+            <div class="row" style="gap:12px;align-items:flex-start">
+              <button class="primary sm" id="btnRescan">Rescan models</button>
+              <button class="ghost sm" id="btnRescanDry">Preview only</button>
+              <span class="muted" style="flex:1;min-width:220px;font-size:12.5px">
+                Detects, per folder: which GGUF is the main build, whether it embeds a
+                NextN/MTP head, whether a projector sits beside it (so vision can be turned
+                on), any <code>mtp-*.gguf</code> draft heads, and the real on-disk size.
+                Run it after you move a model, drop in an <code>mmproj-*.gguf</code>, or
+                finish a download. New folders are registered automatically — one entry per
+                build, so a plain and a <code>-mtp</code> GGUF in the same folder stay
+                separate models.</span>
+            </div>
+            <pre class="log" id="rescanOut" style="display:none;margin-top:12px;max-height:260px"></pre>
+          </div>
+        </div>
+
+        <div class="sec" id="sec-endpoints">
+          <div class="sechead"><h2>Endpoints</h2><span class="hint">cloud keys live server-side in secrets.json, never in the browser</span></div>
+          <div class="presets" id="endpointGrid"></div>
+          <div class="row"><button class="ghost sm" id="addEpBtn">＋ Add a cloud or custom OpenAI-compatible endpoint</button></div>
+          <div class="card" id="addEpForm" style="display:none">
+            <div class="fieldrow">
+              <div class="field"><div class="label">Name / id</div><input id="epId" placeholder="my-openrouter"></div>
+              <div class="field"><div class="label">Label</div><input id="epLabel" placeholder="OpenRouter — Claude"></div>
+              <div class="field"><div class="label">Base URL (ends in /v1)</div><input id="epBase" placeholder="https://openrouter.ai/api/v1"></div>
+              <div class="field"><div class="label">Model id</div><input id="epModel" placeholder="anthropic/claude-3.5-sonnet"></div>
+              <div class="field"><div class="label">API key (stored server-side, chmod 600)</div><input id="epKey" type="password" placeholder="sk-…"></div>
+              <div class="field" style="justify-content:flex-end"><label class="check"><input type="checkbox" id="epVision"> supports vision</label></div>
+            </div>
+            <div class="row" style="margin-top:16px;justify-content:flex-end">
+              <button class="ghost sm" id="cancelEp">Cancel</button>
+              <button class="primary sm" id="saveEp">Save endpoint</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec" id="sec-engine">
+          <div class="sechead"><h2>Inference engine</h2><span class="hint">only one engine can hold the GPU — switching stops the other</span></div>
+          <div class="presets" id="engineGrid"></div>
+          <div class="note-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 11v5.5M12 7.7h.02"/><circle cx="12" cy="12" r="9"/></svg>
+            <span>llama.cpp is the only engine that runs the GGUF vision model. vLLM and Ollama options are saved even before they are installed, and used when you switch to them.</span>
+          </div>
+          <div class="card" id="engineOpts" style="display:none;border-color:var(--accent-line)">
+            <div class="row" style="justify-content:space-between">
+              <div style="font-size:13.5px;font-weight:600" id="engineOptsTitle">Engine options</div>
+              <button class="ghost sm" id="engineOptsClose">Close</button>
+            </div>
+            <div class="fieldrow" id="engineOptsBody" style="margin-top:14px"></div>
+            <div class="muted" id="engineOptsNote" style="font-size:12px;margin-top:12px;line-height:1.55"></div>
+            <div class="row" style="justify-content:flex-end;margin-top:14px">
+              <button class="primary sm" id="engineOptsSave">Save options</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec" id="sec-download">
+          <div class="sechead"><h2>Download a model</h2><span class="hint">from Hugging Face into ~/models, auto-registered when it lands</span></div>
+          <div class="card">
+            <div class="fieldrow">
+              <div class="field"><div class="label">Model — org/name, URL, or org/name-GGUF:QUANT</div>
+                <input id="dlRepo" placeholder="unsloth/Qwen3-VL-8B-GGUF:UD-Q4_K_XL"></div>
+              <div class="field"><div class="label">Download to (folder)</div>
+                <input id="dlDest" placeholder="~/models/<name>"></div>
+              <div class="field"><div class="label">Register as name (optional)</div>
+                <input id="dlName" placeholder="(defaults to the repo name)"></div>
+              <div class="field"><div class="label">Only these files (optional globs)</div>
+                <input id="dlInclude" placeholder="*UD-Q4_K_XL*  mmproj*"></div>
+            </div>
+            <div class="row" style="justify-content:space-between;margin-top:16px">
+              <span class="muted" style="font-size:12px">Runs in the background; the model appears in the pickers when done.</span>
+              <button class="primary sm" id="dlStart">Download</button>
+            </div>
+            <div id="dlList" style="margin-top:12px"></div>
+          </div>
+        </div>
+
+        <div class="sec" id="sec-installed">
+          <div class="sechead"><h2>Installed models</h2><span class="hint">what is on disk under ~/models — remove what you do not use</span></div>
+          <div class="presets" id="installedGrid"></div>
+          <div class="note-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 11v5.5M12 7.7h.02"/><circle cx="12" cy="12" r="9"/></svg>
+            <span>Remove deletes the folder under <code>~/models</code> permanently. The model currently loaded on the GPU, and anything outside <code>~/models</code>, cannot be removed.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PRESETS ============ -->
+      <section class="view" id="view-presets">
+
+        <div class="sec" id="sec-profiles">
+          <div class="sechead"><h2>Profiles</h2><span class="hint">your default preset, and what is serving right now</span></div>
+          <div class="profiles">
+            <div class="profile">
+              <div class="ptitle">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="var(--accent)" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"><path d="m12 3.6 2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8Z"/></svg>
+                Default <span class="muted" style="font-weight:400;font-size:12px">— your stable everyday preset</span>
+              </div>
+              <div class="row"><select id="selDefault" style="flex:1;min-width:0"></select><button class="primary" id="applyDefault">Apply</button></div>
+              <div class="muted" id="defMeta" style="font-size:12.5px"></div>
+            </div>
+            <div class="profile" id="activeProfile">
+              <div class="ptitle">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+                Active <span class="muted" style="font-weight:400;font-size:12px">— what is serving right now</span>
+              </div>
+              <div class="row" style="justify-content:space-between;align-items:baseline">
+                <span class="mono" id="actPreset" style="font-size:15px;font-weight:600">—</span>
+                <span class="mono" id="actVram" style="font-size:13px;color:var(--muted)">—</span>
+              </div>
+              <div class="mono" id="actModel" style="font-size:11.5px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+              <div class="row" style="justify-content:space-between">
+                <span class="muted" id="actMeta" style="font-size:12.5px"></span>
+                <button class="sm" id="btnReapply" title="Restart the server on this preset">Reapply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec" id="sec-allpresets">
+          <div class="sechead"><h2>All presets</h2><span class="hint">VRAM figures are a linear fit of measured runs — watch the log for OOM</span></div>
+          <div class="presets" id="presetGrid"></div>
+          <div class="row"><button class="ghost sm" id="newPresetBtn">＋ New preset</button>
+            <span class="muted" style="font-size:12px">Edit changes a preset · the star sets your Default profile · Apply loads it now · drag a card to reorder</span></div>
+          <div class="card" id="presetEditor" style="display:none;border-color:var(--accent-line)">
+            <div class="row" style="justify-content:space-between">
+              <div style="font-size:13.5px;font-weight:600" id="presetEditorTitle">Edit preset</div>
+              <button class="ghost sm" id="presetEditorClose">Close</button>
+            </div>
+            <div class="fieldrow" style="margin-top:14px;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))">
+              <div class="field"><div class="label">id / name</div><input id="pe_id"
+                title="Renaming also updates the Default / Testing profiles that point at this preset"></div>
+              <div class="field"><div class="label">model (from ~/models)</div><select id="pe_model"></select></div>
+              <div class="field"><div class="label">KV cache</div><select id="pe_kv"><option value="q4_0">q4_0</option><option value="q8_0">q8_0</option><option value="f16">f16</option></select></div>
+              <div class="field"><div class="label">context (tokens)</div><input id="pe_ctx" type="number" step="1024"></div>
+              <div class="field"><div class="label">slots</div><select id="pe_parallel"><option value="1">1 — one big-context slot (default)</option><option value="2">2 slots</option><option value="3">3 slots</option><option value="4">4 slots</option><option value="5">5 slots</option><option value="6">6 slots</option><option value="7">7 slots</option><option value="8">8 slots</option><option value="auto">auto — llama.cpp picks, shared KV pool</option></select></div>
+              <div class="field"><div class="label">KV layout <span class="muted">(multi-slot)</span></div><select id="pe_kv_unified"
+                title="shared: all slots draw from one pool of `context` tokens, so a single request may use the whole context. split: llama.cpp divides it, n_ctx_seq = context / slots (llama-context.cpp:293). Slots=auto always forces shared — llama.cpp sets it after parsing the flag, so it cannot be overridden there.">
+                <option value="">(inherit)</option>
+                <option value="on">shared — one pool, any request may use it all</option>
+                <option value="off">split — context / slots per slot</option>
+              </select></div>
+              <div class="field"><div class="label">gpu layers (ngl)</div><input id="pe_ngl" placeholder="99 or auto"
+                title="'auto' omits -ngl so llama.cpp --fit picks the split. Required for disk-streaming models: setting ngl explicitly ABORTS the fit and the compute buffers then OOM."></div>
+              <div class="field"><div class="label">n-cpu-moe (layers)</div><input id="pe_n_cpu_moe" type="number" min="0" placeholder="(off)"
+                title="Keep the MoE expert weights of the first N layers on CPU. Qwen3.8-Flash-Next on 16 GB: 40 = fastest measured, 36 = hard OOM, 48 = slower but leaves ~11 GB for an MTP draft."></div>
+              <div class="field"><div class="label">lazy tensors</div><select id="pe_lazy_mode"
+                title="On-demand disk reads for oversized tensors, e.g. Flash-Next's 26.8 GiB engram table (~2.7 KB read per token). auto = on for tensors >4 GiB.">
+                <option value="">(inherit)</option><option value="auto">auto — &gt;4 GiB</option><option value="on">on</option><option value="off">off</option>
+              </select></div>
+              <div class="field"><div class="label">thinking</div><select id="pe_thinking"><option value="">(inherit global)</option><option value="auto">auto</option><option value="on">on</option><option value="off">off</option></select></div>
+              <div class="field"><div class="label">reason effort</div><select id="pe_reason_effort"><option value="">(inherit)</option><option value="default">default</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></div>
+              <div class="field"><div class="label">context shift</div><select id="pe_context_shift"><option value="">(inherit)</option><option value="off">off</option><option value="on">on</option></select></div>
+              <div class="field"><div class="label">cache-reuse</div><input id="pe_cache_reuse" type="number" min="0" placeholder="(inherit)"></div>
+              <div class="field"><div class="label">MTP</div><select id="pe_mtp">
+                <option value="">(inherit)</option><option value="off">off</option>
+                <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+              </select></div>
+              <div class="field"><div class="label">MTP head <span class="muted">(where the draft comes from)</span></div><select id="pe_mtp_head"
+                title="embedded = the NextN block inside the main GGUF (Qwen3.8-27B). A file = a separate mtp-*.gguf draft passed as -md, for models whose GGUF has no head. auto = embedded if present, else the best non-shared mtp-*.gguf in the model directory.">
+                <option value="">(auto)</option>
+                <option value="embedded">embedded — the head in this GGUF</option>
+                <option value="none">none — never use a draft file</option>
+              </select></div>
+              <div class="field"><div class="label">draft KV <span class="muted">(MTP only)</span></div><select id="pe_spec_draft_kv"
+                title="Cache type for the DRAFT context, which the MTP head keeps separately from the target's. Quantizing it shrinks the ctx-scaling half of MTP's VRAM cost without touching the target model's KV or its quality.">
+                <option value="">(inherit)</option><option value="q4_0">q4_0</option><option value="q8_0">q8_0</option><option value="f16">f16</option>
+              </select></div>
+              <div class="field"><div class="label">load mode <span class="muted">(RAM vs disk)</span></div><select id="pe_load_mode"
+                title="Where the weights live. mmap = page them in from the file, so a model larger than RAM streams off NVMe. mlock = pin in RAM, never swap (needs it to fit). dio = DirectIO, bypass the page cache. Replaces --mmap/--no-mmap/--mlock, all deprecated.">
+                <option value="">(auto)</option><option value="mmap">mmap — stream from disk</option>
+                <option value="mlock">mlock — pin in RAM</option>
+                <option value="mmap+mlock">mmap+mlock</option>
+                <option value="dio">dio — DirectIO</option><option value="none">none</option>
+              </select></div>
+              <div class="field"><div class="label">fit target <span class="muted">(MiB free)</span></div><input id="pe_fit_target" type="number" min="0" step="128" placeholder="(1024)"
+                title="VRAM margin --fit leaves free per device. Only applies when gpu layers is 'auto'. Raise it when a fitted preset loads fine but OOMs at peak on a long prompt."></div>
+              <div class="field"><div class="label">threads <span class="muted">(-t, CPU)</span></div><input id="pe_threads" type="number" placeholder="(-1 auto)"
+                title="CPU threads for generation. Matters once experts live on CPU (n-cpu-moe) or the model streams from disk — that work is CPU-bound, not GPU-bound."></div>
+              <div class="field"><div class="label">vision <span class="muted">(mmproj ≈0.9 GB)</span></div><select id="pe_vision">
+                <option value="">(inherit)</option>
+                <option value="on">on — load the projector</option>
+                <option value="off">off — skip it, frees ~0.9 GB</option>
+              </select></div>
+              <div class="field"><div class="label">image-min-tokens</div><input id="pe_image_min_tokens" type="number" min="0" placeholder="(inherit)"></div>
+              <div class="field"><div class="label">tag (colour badge)</div><input id="pe_tag" placeholder="recommended / tight / quality / agent / vision"></div>
+            </div>
+            <div class="field" style="margin-top:14px"><div class="label">note</div><input id="pe_note"></div>
+            <div class="estline"><span class="muted" id="pe_est"></span></div>
+            <div class="row" style="justify-content:space-between;margin-top:14px">
+              <button class="sm danger" id="pe_delete">Delete preset</button>
+              <button class="primary sm" id="pe_save">Save preset</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec" id="sec-autoswitch">
+          <div class="sechead"><h2>Auto-switch</h2>
+            <span class="hint">each preset's <b>tag</b> is its client model name — set the tag in the preset editor and it appears here automatically. A switch costs one model reload (~30–90 s)</span></div>
+          <div class="card">
+            <div class="row" style="justify-content:space-between;align-items:center">
+              <label style="display:flex;gap:8px;align-items:center;font-size:13.5px">
+                <input type="checkbox" id="asEnabled"> Auto-switch on client model name
+              </label>
+              <span class="muted" id="asState" style="font-size:12px"></span>
+            </div>
+            <div class="row" style="margin-top:14px;gap:8px">
+              <input id="asAlias" placeholder="extra manual alias (optional)"
+                title="Tags map automatically. Use this only for an extra name that should point at a preset without changing its tag.">
+              <select id="asPreset"></select>
+              <button class="primary sm" id="asAdd">＋ Add alias</button>
+            </div>
+            <div id="asRows" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div>
+            <div class="muted" style="font-size:12px;margin-top:10px">Unmapped model names are served by whatever is loaded — no reload, no error. Tag-derived entries follow the preset editor; only manual aliases can be removed here.</div>
+          </div>
+        </div>
+
+        <div class="sec" id="sec-custom">
+          <div class="sechead"><h2>Custom preset</h2><span class="hint">dial it in, see the VRAM cost before you commit</span></div>
+          <div class="card">
+            <div class="grid two">
+              <div style="display:flex;flex-direction:column;gap:18px">
+                <div class="field">
+                  <div class="label">Context window — <b class="mono" id="ctxVal" style="color:var(--ink)">98304</b> tokens <span class="muted" id="ctxPer"></span></div>
+                  <input type="range" id="ctxRange" min="8192" max="200704" step="8192" value="98304">
+                </div>
+                <div class="row" style="align-items:flex-end;gap:14px">
+                  <div class="field" style="flex:1;min-width:200px">
+                    <div class="label">KV cache precision</div>
+                    <select id="kvSel">
+                      <option value="q4_0">q4_0 — ¼ memory, most context</option>
+                      <option value="q8_0">q8_0 — ½ memory, best quality</option>
+                      <option value="f16">f16 — full precision (2× memory)</option>
+                    </select>
+                  </div>
+                  <div class="field" style="width:210px">
+                    <div class="label">Slots</div>
+                    <select id="parSel"><option value="1">1 — one big-context slot (default)</option><option value="2">2 slots</option><option value="3">3 slots</option><option value="4">4 slots</option><option value="5">5 slots</option><option value="6">6 slots</option><option value="7">7 slots</option><option value="8">8 slots</option><option value="auto">auto — llama.cpp picks, shared KV pool</option></select>
+                  </div>
+                </div>
+                <div class="muted" style="font-size:12.5px;line-height:1.55" id="kvHint"></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div class="label">Estimated VRAM at load</div>
+                <div class="estline"><span class="estval" id="estVal">—</span><span class="muted mono" id="estOf"></span></div>
+                <div class="minibar" id="estBar" style="height:8px;border-radius:5px"><span style="width:0%"></span></div>
+                <div class="muted" style="font-size:12.5px" id="estNote"></div>
+                <div class="muted" style="font-size:12.5px" id="perSlot"></div>
+                <div class="spacer"></div>
+                <button class="primary" id="applyCustom" style="margin-top:10px">Apply custom preset</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ RUNTIME ============ -->
+      <section class="view" id="view-runtime">
+
+        <div class="sec" id="sec-runtime">
+          <div class="sechead"><h2>Thinking &amp; context handling</h2><span class="hint">llama.cpp runtime — takes effect on the next restart</span></div>
+          <div class="card">
+            <div class="grid two">
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div class="field">
+                  <div class="label">Thinking / reasoning</div>
+                  <select id="rt_thinking">
+                    <option value="auto">auto — chat template decides</option>
+                    <option value="on">on — always reason (best quality, slower)</option>
+                    <option value="off">off — never reason (fast, best for agents)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <div class="label">Reasoning effort (when thinking on)</div>
+                  <select id="rt_reason_effort">
+                    <option value="">default</option><option value="low">low</option>
+                    <option value="medium">medium</option><option value="high">high</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <div class="label">Context shift (when the window fills)</div>
+                  <select id="rt_context_shift">
+                    <option value="off">off — error when full (recommended; harness compacts)</option>
+                    <option value="on">on — drop oldest tokens (corrupts agent state)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <div class="label">KV cache across slots</div>
+                  <select id="rt_kv_unified">
+                    <option value="">llama.cpp default (split when slots are set)</option>
+                    <option value="on">shared — one pool, a single request may use the whole context</option>
+                    <option value="off">split — each slot reserves context ÷ slots</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <div class="label">Speculative decoding (MTP draft head) — costs ~1 GB VRAM</div>
+                  <select id="rt_mtp">
+                    <option value="off">off — plain decoding (~53 tok/s)</option>
+                    <option value="1">1 — shallow draft, smallest gain</option>
+                    <option value="2">2 — best all-round (~78 prose / ~89 code)</option>
+                    <option value="3">3 — favours code (~70 prose / ~94 code)</option>
+                  </select>
+                </div>
+                <div class="note-box" id="mtpGlobalNote" style="display:none"></div>
+                <div class="field">
+                  <div class="label">Flash attention (-fa)</div>
+                  <select id="rt_flash_attn">
+                    <option value="on">on — faster, less VRAM (required for quantized KV)</option>
+                    <option value="auto">auto — llama.cpp decides</option>
+                    <option value="off">off — reference path (slower)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div class="field">
+                  <div class="label">cache-reuse (tokens) — KV prefix reuse, 0 disables</div>
+                  <input type="number" id="rt_cache_reuse" min="0" step="64">
+                </div>
+                <div class="field">
+                  <div class="label">image-min-tokens — Qwen-VL grounding needs 1024+</div>
+                  <input type="number" id="rt_image_min_tokens" min="0" step="128">
+                </div>
+                <div class="field">
+                  <div class="label">extra llama-server flags (appended verbatim)</div>
+                  <input type="text" id="rt_extra_flags" placeholder="--slots --metrics">
+                </div>
+                <div class="note-box" id="compactionNote"></div>
+              </div>
+            </div>
+            <div class="row" style="justify-content:flex-end;margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft)">
+              <span class="muted" style="font-size:12.5px;margin-right:auto">Saving alone keeps the current server running until you restart it.</span>
+              <button class="sm" id="saveRt">Save</button>
+              <button class="primary sm" id="saveRtApply">Save &amp; restart model now</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec" id="sec-gen">
+          <div class="sechead"><h2>Operating settings</h2><span class="hint">generation defaults the router injects when a client omits them</span></div>
+          <div class="card">
+            <div class="fieldrow">
+              <div class="field"><div class="label">temperature</div><input type="number" step="0.05" min="0" max="2" id="g_temperature"></div>
+              <div class="field"><div class="label">top_p</div><input type="number" step="0.05" min="0" max="1" id="g_top_p"></div>
+              <div class="field"><div class="label">top_k</div><input type="number" step="1" min="0" id="g_top_k"></div>
+              <div class="field"><div class="label">min_p</div><input type="number" step="0.01" min="0" max="1" id="g_min_p"></div>
+              <div class="field"><div class="label">max_tokens</div><input type="number" step="1" min="0" id="g_max_tokens"></div>
+              <div class="field"><div class="label">repeat_penalty</div><input type="number" step="0.01" min="0" id="g_repeat_penalty"></div>
+              <div class="field"><div class="label">presence_penalty</div><input type="number" step="0.1" id="g_presence_penalty"></div>
+              <div class="field"><div class="label">frequency_penalty</div><input type="number" step="0.1" id="g_frequency_penalty"></div>
+            </div>
+            <div class="note-box accent" style="margin-top:16px">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"><path d="M12 11v5.5M12 7.7h.02"/><circle cx="12" cy="12" r="9"/></svg>
+              <span>Leave these blank to let the server's own thinking-aware sampling win (the Unsloth Qwen3-VL profile). Set a value only to force it for every client.</span>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label class="check"><input type="checkbox" id="g_apply_system"> inject a default system prompt when the client sends none</label>
+              <textarea id="g_system_prompt" rows="2" placeholder="You are a concise, helpful assistant…" style="width:100%;margin-top:8px"></textarea>
+            </div>
+            <div class="row" style="justify-content:space-between;margin-top:16px;padding-top:16px;border-top:1px solid var(--line-soft)">
+              <label class="check"><input type="checkbox" id="g_override_client"> override values the client sets — force these on every request</label>
+              <button class="primary sm" id="saveGen">Save operating settings</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="foot">
+          The panel edits <code>serve-vlm.sh</code> knobs live. VRAM estimates are a linear fit of GPU-measured presets — treat them as a guide and watch the log for OOM. The model id <code>qwen3-vl</code> stays the same throughout, so no harness ever needs reconfiguring.
+        </div>
+      </section>
+
+
+      <!-- ============ SERVER LOG ============ -->
+      <section class="view" id="view-log">
+        <div class="sec" id="sec-log">
+          <div class="sechead"><h2>Server log</h2><span class="hint">live tail of ~/server.log — newest line first</span></div>
+          <pre class="log" id="log" style="max-height:min(72vh,700px)">…</pre>
+        </div>
+      </section>
+
+      <!-- ============ COMMAND & LOG ============ -->
+      <section class="view" id="view-command">
+        <div class="sec">
+          <div class="sechead"><h2>Running command</h2>
+            <span class="hint">the exact argv of the process, read from /proc — not what the config says it should be</span></div>
+          <div class="card">
+            <div class="row" style="justify-content:space-between;margin-bottom:8px">
+              <span id="cmdWho" class="muted" style="font-size:12.5px">—</span>
+              <button class="ghost sm" id="cmdCopy">Copy command</button>
+            </div>
+            <pre class="log" id="cmdArgv" style="max-height:340px">not running</pre>
+            <div class="muted" style="font-size:12px;margin-top:8px">Environment the launcher was given:</div>
+            <pre class="log" id="cmdEnv" style="max-height:180px">—</pre>
+          </div>
+        </div>
+        <div class="sec">
+          <div class="sechead"><h2>Log</h2><span class="hint">newest last; pick which log</span></div>
+          <div class="card">
+            <div class="row" style="gap:8px;margin-bottom:8px">
+              <select id="cmdSrc" style="max-width:200px">
+                <option value="server">model server</option>
+                <option value="bench">benchmark</option>
+                <option value="panel">panel</option>
+              </select>
+              <select id="cmdN" style="max-width:140px">
+                <option value="200">200 lines</option><option value="600">600 lines</option><option value="2000">2000 lines</option>
+              </select>
+              <label class="muted" style="font-size:12.5px;display:flex;align-items:center;gap:6px">
+                <input type="checkbox" id="cmdFollow" checked> follow</label>
+              <button class="ghost sm" id="cmdRefresh">Refresh</button>
+            </div>
+            <pre class="log" id="cmdLog" style="max-height:520px">—</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ BENCHMARK ============ -->
+      <section class="view" id="view-bench">
+        <div class="sec">
+          <div class="sechead"><h2>Benchmark</h2>
+            <span class="hint">llama-bench sweeps every combination you list — one job, one row per setting</span></div>
+          <div class="card">
+            <div class="fieldrow">
+              <div class="field"><div class="label">model</div><select id="bn_model"></select></div>
+              <div class="field"><div class="label">n-cpu-moe <span class="muted">(list)</span></div><input id="bn_ncmoe" placeholder="40,48"
+                title="Comma-separated. llama-bench runs each value and reports them side by side — this is how 40 vs 48 gets settled."></div>
+              <div class="field"><div class="label">load mode <span class="muted">(list)</span></div><input id="bn_load_mode" placeholder="mmap,mlock"></div>
+              <div class="field"><div class="label">lazy mode <span class="muted">(list)</span></div><input id="bn_lazy_mode" placeholder="on,auto,off"></div>
+              <div class="field"><div class="label">KV type <span class="muted">(list — K×V)</span></div><input id="bn_kv" placeholder="q4_0,q8_0"
+                title="Applied to both --cache-type-k and --cache-type-v, which llama-bench crosses: 'q4_0,q8_0' is FOUR combinations (k/v = 4/4, 4/8, 8/4, 8/8), not two. The results table shows type_k and type_v separately."></div>
+              <div class="field"><div class="label">ubatch <span class="muted">(list)</span></div><input id="bn_ubatch" placeholder="512,1024"></div>
+              <div class="field"><div class="label">threads <span class="muted">(list)</span></div><input id="bn_threads" placeholder="(auto)"></div>
+              <div class="field"><div class="label">gpu layers</div><input id="bn_ngl" placeholder="99 or auto"
+                title="'auto' (or blank) omits -ngl. Required for any model too big for VRAM: pinning -ngl there fails the load outright."></div>
+              <div class="field"><div class="label">fit target <span class="muted">(MiB)</span></div><input id="bn_fit_target" placeholder="1536"
+                title="llama-bench does NOT fit by default the way llama-server does — set this (with gpu layers 'auto') or a model larger than VRAM will not load at all."></div>
+              <div class="field"><div class="label">prompt tokens (pp)</div><input id="bn_prompt" placeholder="512"></div>
+              <div class="field"><div class="label">generated tokens (tg)</div><input id="bn_gen" placeholder="128"></div>
+              <div class="field"><div class="label">repetitions</div><input id="bn_reps" placeholder="3"></div>
+              <div class="field"><div class="label">save as</div><input id="bn_label" placeholder="flashnext ncmoe sweep"></div>
+            </div>
+              <div class="field"><div class="label">extra llama-bench flags</div><input id="bn_extra" placeholder="-ot &quot;.ffn_.*_exps.=CPU&quot;"
+                title="Appended verbatim. Anything llama-bench accepts and this form does not name yet — -ts, -nkvo, -mg, -nopo, a new flag from a future build."></div>
+            <div class="note-box" style="margin-top:10px">
+              <b>llama-bench cannot measure MTP.</b> It has no <code>--spec-type</code> or
+              <code>-md</code>, so speculative decoding has to be compared by actually running
+              the server — apply the preset and read tok/s from the dashboard. Everything else
+              (experts on CPU, load mode, KV type, batch, threads) is settled here, faster and
+              without restarting anything.
+            </div>
+            <div class="row" style="margin-top:12px;gap:8px">
+              <button class="primary sm" id="bn_run">Run sweep</button>
+              <button class="sm" id="bn_real" title="Start the real llama-server with these settings — the first value of each list — and watch it in Command &amp; log. llama-bench is a different binary with a different loader, so a winning combination is not proven until the thing that actually serves has run it.">Run for real →</button>
+              <input id="bn_ctx" placeholder="ctx for the real run (32768)" style="max-width:210px">
+              <span class="muted" id="bn_state" style="font-size:12.5px"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sechead"><h2>Server benchmark <span class="muted">— the MTP one</span></h2>
+            <span class="hint">actually runs each preset and measures real completions</span></div>
+          <div class="card">
+            <div class="muted" style="font-size:12.5px;margin-bottom:10px">
+              Starts the preset, waits for it to load, sends real requests, reads llama.cpp's
+              own timings, then moves to the next variant and stops the server at the end.
+              Slower than the sweep above — minutes per variant — but it is the only way to
+              measure speculative decoding, because <code>llama-bench</code> has no
+              <code>--spec-type</code>. With no variants given it compares the preset at
+              <b>MTP off / n=2 / n=3</b>, which is the question worth asking.
+              <b>This restarts the model server.</b>
+            </div>
+            <div class="fieldrow">
+              <div class="field"><div class="label">preset</div><select id="sb_preset"></select></div>
+              <div class="field"><div class="label">tokens to generate</div><input id="sb_gen" placeholder="256"></div>
+              <div class="field"><div class="label">requests per variant</div><input id="sb_reps" placeholder="2"></div>
+              <div class="field"><div class="label">save as</div><input id="sb_label" placeholder="MTP depth on rco-mtp"></div>
+            </div>
+            <div class="field" style="margin-top:10px"><div class="label">prompt</div><input id="sb_prompt" placeholder="(a code-generation prompt, which is where MTP helps most)"></div>
+            <div class="row" style="margin-top:12px;gap:8px">
+              <button class="primary sm" id="sb_run">Run server benchmark</button>
+              <span class="muted" id="sb_state" style="font-size:12.5px"></span>
+            </div>
+            <pre class="log" id="bn_cmd" style="display:none;margin-top:10px;max-height:70px"></pre>
+          </div>
+        </div>
+        <div class="sec">
+          <div class="sechead"><h2>Results</h2><span class="hint">newest first; kept in presets.json so they survive a restart</span></div>
+          <div id="bn_results"></div>
+        </div>
+      </section>
+
+      <!-- ============ POWER ============ -->
+      <section class="view" id="view-power">
+
+        <div class="sec">
+          <div class="sechead"><h2>Host</h2><span class="hint">the machine itself, not the model server</span></div>
+          <div class="card">
+            <div class="row" style="gap:40px">
+              <div><div class="label">Uptime</div><div class="big" id="sysUptime">—</div></div>
+              <div><div class="label">Model server</div><div class="big" id="sysServer" style="font-size:20px">—</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sechead"><h2>Power</h2><span class="hint">stops the model first, then takes the box down</span></div>
+          <div class="card">
+
+            <div class="card" id="powerPassword" style="display:none;margin-bottom:12px">
+              <div style="font-size:12.5px;font-weight:600;margin-bottom:6px">Or authenticate once with your password</div>
+              <div class="muted" style="font-size:12.5px;margin-bottom:8px">
+                Used once, passed to <code>sudo -S</code> over stdin, never stored or logged.
+                <b>The panel speaks plain HTTP on the LAN</b>, so the password crosses your
+                network unencrypted — the polkit rule below is the safer option, and it only
+                has to be done once.</div>
+              <div class="row" style="gap:8px">
+                <input id="powerPw" type="password" placeholder="sudo password for this box" style="flex:1;min-width:200px">
+                <button class="danger sm" id="btnPoweroffPw">Shut down</button>
+                <button class="sm" id="btnRebootPw">Restart</button>
+              </div>
+            </div>
+            <div id="powerSetup">
+              <div class="note-box" style="background:var(--warn-soft);border-color:var(--warn-line);color:var(--ink2)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="1.8" stroke-linecap="round"><path d="M12 8.5v5M12 16.8h.02"/><circle cx="12" cy="12" r="9"/></svg>
+                <span><b id="powerHint">The panel cannot power this box off yet.</b><br>
+                  The panel runs without root, and polkit currently requires an admin password for power-off.
+                  This rule grants only power-off and reboot to this one user — nothing else.</span>
+              </div>
+              <div class="label" style="margin-top:16px">One-time setup — run on the box, then reload the panel</div>
+              <pre class="log" id="powerCmd" style="max-height:none">…</pre>
+              <div class="row" style="margin-top:10px">
+                <button class="sm" id="copyPowerCmd">Copy command</button>
+                <span class="muted" style="font-size:12px">No restart needed — polkit picks the rule up immediately.</span>
+              </div>
+            </div>
+
+            <div id="powerActions" style="display:none">
+              <div class="note-box" style="background:var(--bad-soft);border-color:var(--bad-line);color:var(--ink2)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--bad)" stroke-width="1.8" stroke-linecap="round"><path d="M12 8.5v5M12 16.8h.02"/><circle cx="12" cy="12" r="9"/></svg>
+                <span>This box is headless. Once it is off, bringing it back needs physical access to the power button
+                  — a restart is the safer choice if you only need a clean slate.</span>
+              </div>
+              <div class="row" style="margin-top:16px">
+                <button class="danger" id="btnPoweroff">Shut down</button>
+                <button id="btnReboot">Restart</button>
+                <span class="muted" style="font-size:12px">Runs after a 60-second grace period. Cancel from the banner at any point before it fires.</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-ccswitch">
+
+        <div class="sec">
+          <div class="sechead"><h2>CC Switch</h2><span class="hint">provider profiles for claude / codex / gemini — stored in ~/.cc-switch</span></div>
+          <div class="card">
+            <div class="row" style="margin-bottom:14px">
+              <button class="sm" id="btnCsRefresh">Refresh</button>
+              <span class="muted" id="csMeta" style="font-size:12px"></span>
+            </div>
+            <table class="tbl" id="csTable">
+              <thead><tr><th>Provider</th><th>App</th><th></th><th></th></tr></thead>
+              <tbody id="csRows"><tr><td colspan="4" class="muted">loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sechead"><h2>Add provider</h2><span class="hint">writes a new profile into the CC Switch database</span></div>
+          <div class="card">
+            <div class="row" style="gap:8px">
+              <select id="csKind" style="min-width:110px">
+                <option value="claude">Claude</option>
+                <option value="codex">Codex</option>
+                <option value="gemini">Gemini</option>
+              </select>
+              <input id="csName" placeholder="name (e.g. my-relay)" style="min-width:160px">
+              <input id="csKey" type="password" placeholder="API key" autocomplete="off" spellcheck="false" style="flex:1;min-width:200px">
+              <input id="csUrl" placeholder="base URL (optional)" style="flex:1;min-width:180px">
+              <button id="btnCsAdd">Add</button>
+            </div>
+            <div class="foot">Base URL is only written when set — leave empty for the official endpoint.</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sechead"><h2>Usage</h2><span class="hint">from CC Switch proxy request logs</span></div>
+          <div class="card">
+            <div class="row" style="margin-bottom:12px">
+              <button class="sm on" data-csdays="7">7 days</button>
+              <button class="sm" data-csdays="30">30 days</button>
+              <button class="sm" data-csdays="90">90 days</button>
+            </div>
+            <table class="tbl" id="csUsage">
+              <thead><tr><th>Provider</th><th>App</th><th style="text-align:right">Requests</th><th style="text-align:right">In tokens</th><th style="text-align:right">Out tokens</th><th style="text-align:right">Cost $</th></tr></thead>
+              <tbody id="csUsageRows"><tr><td colspan="6" class="muted">loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <section class="view" id="view-ccconnect">
+
+        <div class="sec">
+          <div class="sechead"><h2>CC Connect</h2><span class="hint">chat bridge service (systemd user unit, web admin :9820)</span></div>
+          <div class="card">
+            <div class="row" style="gap:40px;margin-bottom:14px">
+              <div><div class="label">Service</div><div class="big" id="ccSvc" style="font-size:20px">—</div></div>
+              <div><div class="label">Web admin</div><div class="big" id="ccWeb" style="font-size:20px">—</div></div>
+              <div><div class="label">Platforms</div><div class="big" id="ccPlat" style="font-size:16px">—</div></div>
+              <div><div class="label">Version</div><div class="big" id="ccVer" style="font-size:16px">—</div></div>
+            </div>
+            <div class="row" style="margin-bottom:14px">
+              <button class="sm" id="btnCcRefresh">Refresh</button>
+              <button class="sm" id="btnCcRestart">Restart service</button>
+              <a class="sm ghost" id="ccLink" href="#" target="_blank" rel="noopener" title="For settings not covered above (e.g. platform tokens)">Open cc-connect ↗</a>
+            </div>
+
+            <div class="sec">
+              <div class="sechead"><h2>Configuration</h2><span class="hint">proxied through the panel to cc-connect's local API — no new port</span></div>
+              <div class="card">
+                <div class="row" style="gap:8px;margin-bottom:10px">
+                  <button class="sm on" data-ccsec="providers">Providers</button>
+                  <button class="sm" data-ccsec="settings">Settings</button>
+                  <button class="sm" data-ccsec="projects">Projects</button>
+                </div>
+                <div id="ccSecProviders">
+                  <p class="muted" style="font-size:12.5px;margin-bottom:8px">API-key providers used by the bridge agents (claude / codex / gemini). Deletion lives in the CC Switch view — same database.</p>
+                  <table class="tbl">
+                    <thead><tr><th>Name</th><th>App</th></tr></thead>
+                    <tbody id="ccProvRows"><tr><td colspan="2" class="muted">loading…</td></tr></tbody>
+                  </table>
+                  <div class="row" style="gap:8px;margin-top:10px">
+                    <input id="ccProvName" placeholder="name" style="min-width:140px">
+                    <select id="ccProvApp" style="min-width:110px"><option value="claude">claude</option><option value="codex">codex</option><option value="gemini">gemini</option></select>
+                    <input id="ccProvKey" type="password" placeholder="API key" autocomplete="off" style="flex:1;min-width:160px">
+                    <button id="btnCcProvAdd">Add provider</button>
+                  </div>
+                </div>
+                <div id="ccSecSettings" style="display:none">
+                  <p class="muted" style="font-size:12.5px;margin-bottom:8px">Bridge behaviour: language, log level, rate limits, stream/thinking/tool preview, idle timeout.</p>
+                  <table class="tbl" id="ccSettingsTbl">
+                    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+                    <tbody id="ccSettingsRows"></tbody>
+                  </table>
+                  <div class="row" style="gap:8px;margin-top:10px">
+                    <select id="ccSetLang" style="min-width:120px"><option value="en">English</option><option value="zh">中文</option></select>
+                    <select id="ccSetLogLevel" style="min-width:130px"><option value="debug">debug</option><option value="info">info</option><option value="warn">warn</option><option value="error">error</option></select>
+                    <input id="ccSetIdle" type="number" placeholder="idle timeout (min)" style="width:130px">
+                    <button id="btnCcSettingsSave">Save settings</button>
+                  </div>
+                </div>
+                <div id="ccSecProjects" style="display:none">
+                  <p class="muted" style="font-size:12.5px;margin-bottom:8px">Projects: which agent runs in which workdir, on which platforms.</p>
+                  <table class="tbl" id="ccProjTbl">
+                    <thead><tr><th>Project</th><th>Agent</th><th>Platforms</th><th>Sessions</th></tr></thead>
+                    <tbody id="ccProjRows"></tbody>
+                  </table>
+                  <div class="row" style="gap:8px;margin-top:10px">
+                    <label class="muted" style="font-size:12.5px">Agent for “home”:</label>
+                    <select id="ccProjAgent" style="min-width:140px"></select>
+                    <button id="btnCcProjSave">Save project</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <pre class="log" id="ccLog" style="max-height:260px">…</pre>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
   </div>
 </div>
 
@@ -382,7 +1112,37 @@ $('#savekey').onclick = () => { localStorage.setItem('llmPanelKey', $('#apikey')
 
 function toast(msg, kind){ const t=$('#toast'); t.textContent=msg; t.className='toast show '+(kind||''); clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',3200); }
 function fmtCtx(n){ return n>=1024 ? (n/1024).toFixed(n%1024?1:0)+'k' : n; }
-function estVram(ctx, kv){ const c=COEF[kv]||COEF.q4_0; return c[0]+c[1]*ctx/1000; }
+// The UI exposes MTP as a single discrete choice ('' inherit | 'off' | '1'..'3');
+// the config keeps it as two keys (spec_type + spec_n_max). These two convert.
+function mtpToUi(spec_type, n){
+  if(spec_type===null||spec_type===undefined||spec_type==='') return '';
+  if(!specOn(spec_type)) return 'off';
+  return String(n||2);
+}
+function mtpFromUi(v){
+  if(v==='')    return {spec_type:null,       spec_n_max:null};
+  if(v==='off') return {spec_type:'none',     spec_n_max:null};
+  return             {spec_type:'draft-mtp', spec_n_max:Number(v)};
+}
+function estVram(ctx, kv, spec, parallel, vision){ const c=COEF[kv]||COEF.q4_0;
+  return c[0]+c[1]*ctx/1000+mtpGb(ctx,spec)+slotGb(ctx,parallel)-visionGb(vision); }
+// llama.cpp's --parallel defaults to -1 = auto, and server.cpp then forces n_parallel = 4
+// with kv_unified = true. So auto is ALWAYS 4 slots — never 1, and never memory-aware.
+const AUTO_SLOTS = 4;
+function effSlots(parallel){
+  if(parallel===undefined||parallel===null||parallel===''||parallel===0||parallel==='0'||parallel==='auto') return AUTO_SLOTS;
+  const n=+parallel; return Number.isFinite(n)&&n>0 ? n : AUTO_SLOTS; }
+function slotGb(ctx, parallel){ const o=((CFG&&CFG.estimator)||{}).slot_overhead_gb;
+  return o ? Math.max(0, effSlots(parallel)-1)*(o[0]+o[1]*ctx/1000) : 0; }
+// coeffs_gb were fit with the F16 projector loaded, so vision:off hands VRAM back.
+function visionGb(vision){ const g=((CFG&&CFG.estimator)||{}).vision_gb;
+  return (g && ['off','no','false','0'].includes(String(vision||'').toLowerCase())) ? g : 0; }
+// MTP draft head + its own draft KV. Measured, and identical for q4_0/q8_0 KV.
+// `spec` undefined means "whatever the panel is currently configured to run with".
+function specOn(spec){ const v = (spec===undefined) ? (((CFG&&CFG.runtime)||{}).spec_type||'none') : spec;
+  return !!v && v!=='none' && v!=='off'; }
+function mtpGb(ctx, spec){ const o=((CFG&&CFG.estimator)||{}).mtp_overhead_gb;
+  return (o && specOn(spec)) ? o[0]+o[1]*ctx/1000 : 0; }
 
 async function api(path, opts){
   opts = opts||{};
@@ -402,14 +1162,90 @@ async function loadCfg(){
   $('#directUrl').textContent = ':'+CFG.server.vlm_port+'/v1';
   LOADED_VERSION = CFG.version || LOADED_VERSION;
   await refreshModels();
-  renderEndpoints(); renderPresets(); renderProfiles(); initCustom(); loadGen(); loadRuntime();
-  try{ const s=await (await fetch('/api/status')).json(); renderEngines(s); LAST_ENG=s.running_engine; LAST_AENG=s.active_engine; }catch(e){}
+  // one failing section must not abort the whole init and leave the page half-dead
+  try{ renderEndpoints(); renderPresets(); renderProfiles(); initCustom(); loadGen(); loadRuntime(); renderAutoSwitch(); }
+  catch(err){ console.error('panel: a section failed to render', err);
+    toast('A panel section failed to render — check the browser console','bad'); }
+  try{ const s=await (await fetch('/api/status')).json(); renderEngines(s); renderPower(s.system); paintLivePreset(s); paintActiveProfile(s);
+    LAST_ENG=s.running_engine; LAST_AENG=s.active_engine; }catch(e){}
 }
 async function refreshModels(){
   try{ const j=await (await fetch('/api/models')).json(); MODELS=j.models||[]; }catch(e){ MODELS=[]; }
+  renderInstalled();
   return MODELS;
 }
+
+// ---------- installed models on disk ----------
+function renderInstalled(){
+  const g=$('#installedGrid'); if(!g) return;
+  g.innerHTML='';
+  const liveFile=(LAST&&LAST.running&&LAST.running.model_file)||null;
+  (MODELS||[]).forEach(m=>{
+    const id=m.config_id||m.id;
+    const used=(CFG&&CFG.presets||[]).filter(p=>p.model===id).map(p=>p.id);
+    const live=!!(liveFile&&m.gguf&&m.gguf===liveFile);
+    const el=document.createElement('div'); el.className='preset';
+    el.innerHTML=`
+      <div class="row cardhead" style="justify-content:space-between">
+        <span class="name" style="flex:1;min-width:0">${id}</span>
+        ${live?'<span class="livebadge" style="display:inline-flex">live</span>':''}
+        ${m.missing?'<span class="tag tight">missing</span>':(used.length?'':'<span class="tag extreme">unused</span>')}
+      </div>
+      <div class="pmodel trunc mono" title="${m.dir||''}">${m.dir||'—'}</div>
+      <div class="note">${m.missing?'Registered but not on disk.':(used.length?('Used by: '+used.join(', ')):'No preset uses this model.')}</div>
+      <div class="specs">
+        <div><div class="label">Size</div><b>${m.size_gb!=null?m.size_gb+' GB':'—'}</b></div>
+        <div><div class="label">Vision</div><b>${m.vision?'yes':'no'}</b></div>
+      </div>
+      <div class="pbtns"><button class="ghost sm" data-rm style="flex:1">Remove from disk</button></div>`;
+    const btn=el.querySelector('[data-rm]');
+    if(live||m.missing){ btn.disabled=true; btn.title=live?'Currently loaded on the GPU — stop it first':'Nothing on disk to remove'; }
+    else btn.onclick=()=>removeModel(id, m.size_gb, used);
+    g.appendChild(el);
+  });
+  if(!(MODELS||[]).length) g.innerHTML='<div class="muted" style="font-size:12.5px">No models found under ~/models.</div>';
+}
+
+async function removeModel(id, sizeGb, used){
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  let msg=`Permanently delete ${id} from disk?\n\nThis frees about ${sizeGb||'?'} GB and cannot be undone.`;
+  if(used.length) msg+=`\n\nWARNING: still used by preset(s): ${used.join(', ')}`;
+  if(!confirm(msg)) return;
+  if(prompt('Type the model name to confirm deletion:')!==id){ toast('Name did not match — nothing deleted','bad'); return; }
+  const {status,j}=await api('/api/models',{method:'POST',
+    body:JSON.stringify({op:'delete', id, purge:true, force:used.length>0})});
+  if(status===200){ toast(`Removed ${id} — freed ${j.freed_gb} GB`,'ok'); await loadCfg(); await refreshModels(); }
+  else if(status===409) toast('In use by: '+(j.presets||[]).join(', '),'bad');
+  else toast(j.error||'failed','bad');
+}
 $('#reloadBtn').onclick=()=>location.reload(true);
+
+// ---------- download models ----------
+let DONE_DLS=new Set();
+$('#dlStart').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  const repo=$('#dlRepo').value.trim(); if(!repo){ toast('enter a repo or URL','bad'); return; }
+  const body={repo, dest:$('#dlDest').value.trim()||null, name:$('#dlName').value.trim()||null, include:$('#dlInclude').value.trim()||null};
+  const {status,j}=await api('/api/download',{method:'POST',body:JSON.stringify(body)});
+  if(status===202){ toast('Download started','ok'); $('#dlRepo').value=''; pollDownloads(); }
+  else toast(j.error||'failed','bad');
+};
+async function pollDownloads(){
+  try{ const j=await (await fetch('/api/downloads')).json(); const list=j.downloads||[];
+    list.forEach(d=>{ if(d.phase==='done'&&!DONE_DLS.has(d.id)){ DONE_DLS.add(d.id); refreshModels(); toast('Model ready: '+d.name+' — pick it when editing a preset, or in engine options','ok'); } });
+    renderDownloads(list);
+  }catch(e){}
+}
+function renderDownloads(list){
+  const el=$('#dlList'); if(!el) return;
+  if(!list.length){ el.innerHTML=''; return; }
+  el.innerHTML=list.map(d=>{
+    const pct=d.pct!=null?d.pct:0;
+    const status=d.phase==='done'?'done':d.phase==='error'?('failed — '+(d.error||'error')):`${d.got_gb||0}${d.total_gb?(' / '+d.total_gb):''} GB${d.pct!=null?(' · '+d.pct+'%'):''}`;
+    const bar=`<div class="mbar ${d.phase==='error'?'bad':''}" style="margin-top:4px"><span style="width:${Math.min(100,pct)}%"></span></div>`;
+    return `<div style="padding:7px 0;border-top:1px solid var(--line)"><div class="row" style="justify-content:space-between"><b style="font-size:13px">${d.repo}</b><span class="muted" style="font-size:12px">${status}</span></div><div class="muted" style="font-size:11px">→ ${d.dest}</div>${(d.phase!=='done'&&d.phase!=='error')?bar:''}</div>`;
+  }).join('');
+}
 
 // ---------- endpoints (local + cloud) ----------
 function renderEndpoints(){
@@ -418,19 +1254,34 @@ function renderEndpoints(){
     const active = CFG.active_endpoint===e.id;
     const el=document.createElement('div'); el.className='preset'+(active?' live':''); el.dataset.ep=e.id;
     const isLocal = e.type==='local';
-    const badge = isLocal ? '<span class="tag quality">local · GPU</span>'
-                 : (e.key_set ? '<span class="tag recommended">cloud · key ✓</span>'
-                              : '<span class="tag tight">cloud · no key</span>');
-    const sub = isLocal ? 'Qwen3.8-27B on your RTX 5080'
-                        : `${e.base_url||''}<br>model: <b>${e.model||'—'}</b>`;
+    let name = e.label||e.id;
+    let sub, badge;
+    if(isLocal){
+      // reflect whichever engine/model is currently active on the GPU
+      const eng = CFG.active_engine || (LAST&&LAST.running_engine) || 'llamacpp';
+      const espec = (CFG.engines||{})[eng]||{};
+      let model='';
+      if(eng==='llamacpp'){ const mf=(LAST&&LAST.running&&LAST.running.model_file);
+        model = mf ? mf.replace(/\.gguf$/i,'') : ((CFG.models&&CFG.models['qwen3-vl'])?'Qwen3.8-27B':''); }
+      else { model = espec.model||''; }
+      name = 'Local · ' + (espec.label||eng);
+      sub = `<span class="trunc mono" title="${model||''}">${model||'local model'}</span>`
+          + `<span class="muted">on your RTX 5080</span>`;
+      badge = `<span class="tag quality">local</span>`;
+    } else {
+      badge = e.key_set ? '<span class="tag recommended">cloud · key ✓</span>'
+                        : '<span class="tag tight">cloud · no key</span>';
+      sub = `<span class="trunc mono" title="${e.model||''}">${e.model||'—'}</span>`
+          + `<span class="trunc muted" title="${e.base_url||''}">${e.base_url||''}</span>`;
+    }
     el.innerHTML=`
-      <div class="star">${active?'● live':''}</div>
-      <div class="row cardhead" style="justify-content:space-between;align-items:flex-start"><span class="name" style="flex:1;min-width:0">${e.label||e.id}</span>${badge}</div>
-      <div class="note" style="min-height:40px">${sub}${e.vision?' · 👁 vision':''}</div>
+      <div class="row cardhead" style="justify-content:space-between;align-items:flex-start"><span class="name" style="flex:1;min-width:0">${name}</span>
+        <span class="livebadge" style="display:${active?'inline-flex':'none'}">live</span>${badge}</div>
+      <div class="note">${sub}${e.vision?'<span class="muted">vision-capable</span>':''}</div>
       <div class="pbtns">
         <button class="primary sm" data-act ${(!isLocal && !e.key_set)?'disabled title="add a key first"':''}>${active?'Active':'Activate'}</button>
         ${!isLocal?'<button class="ghost sm" data-check title="test reachability">test</button>':''}
-        ${!isLocal?'<button class="ghost sm" data-del title="remove">🗑</button>':''}
+        ${!isLocal?'<button class="ghost sm icon" data-del title="Remove this endpoint"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5h15M9.5 6.5V4.8h5v1.7M7 6.5l.9 13h8.2l.9-13"/></svg></button>':''}
       </div>`;
     el.querySelector('[data-act]').onclick=()=>activateEndpoint(e);
     if(!isLocal){
@@ -491,7 +1342,7 @@ $('#saveGen').onclick=async()=>{
 };
 
 // ---------- inference engine ----------
-let ESTAT=null, LAST_ENG=undefined, LAST_AENG=undefined;
+let ESTAT=null, LAST_ENG=undefined, LAST_AENG=undefined, LAST_EPSIG=undefined, LAST_ENGSIG=undefined;
 function renderEngines(s){
   ESTAT = s.engines_status||ESTAT||{};
   const g=$('#engineGrid'); if(!g) return; g.innerHTML='';
@@ -500,25 +1351,55 @@ function renderEngines(s){
     const spec=specs[id]||{}, st=(ESTAT[id]||{});
     const installed=st.installed, running=(s.running_engine===id);
     const el=document.createElement('div'); el.className='preset'+(running?' live':''); el.dataset.engine=id;
-    const badge = !installed ? '<span class="tag tight">not installed</span>'
+    const ins = st.install || {};
+    const installing = ins.phase === 'running';
+    const badge = !installed ? (installing ? '<span class="tag quality">installing…</span>'
+                                           : '<span class="tag tight">not installed</span>')
                 : running ? '<span class="tag recommended">running</span>'
-                : '<span class="tag quality">installed</span>';
+                : '<span class="tag recommended">installed</span>';
     el.innerHTML=`
-      <div class="star">${running?'● live':''}</div>
-      <div class="row cardhead" style="justify-content:space-between;align-items:flex-start"><span class="name" style="flex:1;min-width:0">${spec.label||id}</span>${badge}</div>
+      <div class="row cardhead" style="justify-content:space-between;align-items:flex-start"><span class="name" style="flex:1;min-width:0">${spec.label||id}</span>
+        <span class="livebadge" style="display:${running?'inline-flex':'none'}">live</span>${badge}</div>
       <div class="note" style="min-height:54px;font-size:11.5px">${spec.formats||''}<br><span class="muted">${spec.note||''}</span></div>
       <div class="specs"><div><div class="label">port</div><b>${st.port||'—'}</b></div><div><div class="label">good for</div><b style="font-weight:500;font-size:11px">${spec.good_for||''}</b></div></div>
       <div class="pbtns">
         ${installed?`<button class="primary sm" data-eng ${running?'disabled':''}>${running?'Running':'Activate'}</button>`
-                   :`<button class="ghost sm" data-install>Show install command</button>`}
-        ${id!=='llamacpp'?`<button class="ghost sm" data-opts>⚙ Options</button>`:''}
+                   :(st.can_install?`<button class="primary sm" data-install ${installing?'disabled':''}>${installing?'Installing…':'Install'}</button>`
+                                   :`<button class="ghost sm" data-install-cmd>Install command</button>`)}
+        ${(installed && st.can_install)?`<button class="ghost sm" data-reinstall ${(installing||running)?'disabled':''}
+            title="${running?'Stop this engine before reinstalling':'Re-run the setup script for this engine'}">${installing?'Installing…':'Reinstall'}</button>`:''}
+        <button class="ghost sm" data-opts>Options</button>
       </div>`;
-    if(installed){ const b=el.querySelector('[data-eng]'); if(b&&!running) b.onclick=()=>activateEngine(id,spec); }
-    else el.querySelector('[data-install]').onclick=()=>{ prompt('Install '+id+' by running:', spec.install||''); };
+    if(installed){ const b=el.querySelector('[data-eng]'); if(b&&!running) b.onclick=()=>activateEngine(id,spec);
+      const rb=el.querySelector('[data-reinstall]'); if(rb&&!running&&!installing) rb.onclick=()=>installEngine(id,spec,true); }
+    else {
+      const ib=el.querySelector('[data-install]');
+      if(ib) ib.onclick=()=>installEngine(id, spec);
+      const ic=el.querySelector('[data-install-cmd]');
+      if(ic) ic.onclick=()=>prompt('Install '+id+' by running:', spec.install||'');
+      if(ins.phase==='error' && ins.error){
+        const e=document.createElement('div');
+        e.className='muted'; e.style.cssText='font-size:11px;color:var(--bad);margin-top:2px';
+        e.textContent='install failed — '+ins.error.slice(0,120);
+        el.appendChild(e);
+      }
+    }
     const ob=el.querySelector('[data-opts]'); if(ob) ob.onclick=()=>openEngineOpts(id);
     g.appendChild(el);
   });
 }
+async function installEngine(id, spec, force){
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  const verb = force ? 'Reinstall' : 'Install';
+  if(!confirm(`${verb} ${spec.label||id}?\n\nRuns on this box:\n  ${spec.install||''}\n\n`
+     +(force?'This re-runs the setup script over the existing install.\n':'')
+     +`It runs in the background — watch progress in logs/install-${id}.log. Nothing else is stopped.`)) return;
+  const {status,j}=await api('/api/engine-install',{method:'POST',body:JSON.stringify({engine:id,force:!!force})});
+  if(status===202) toast('Installing '+id+'… this can take a while','ok');
+  else if(j.already_installed) toast(id+' is already installed','ok');
+  else toast(j.error||'failed','bad');
+}
+
 async function activateEngine(id,spec){
   if(!key()){ toast('Enter the API key first','bad'); return; }
   if(!confirm(`Switch inference engine to ${spec.label||id}?\n\nStops the current engine, frees the GPU, then starts ${id}. ~30–90s downtime.`)) return;
@@ -538,7 +1419,10 @@ const OPT_SPECS = {
     {k:'kv_cache_dtype', t:'select', label:'kv_cache_dtype', opts:['auto','fp8']},
     {k:'max_num_seqs', t:'number', label:'max_num_seqs (concurrency)', ph:'16'},
     {k:'enable_prefix_caching', t:'select', label:'prefix caching', opts:['on','off']},
-    {k:'reasoning_parser', t:'text', label:'reasoning_parser (thinking split)', ph:'qwen3 / deepseek_r1 / blank'}
+    {k:'reasoning_parser', t:'text', label:'reasoning_parser (thinking split)', ph:'qwen3 / deepseek_r1 / blank'},
+    {k:'attention_backend', t:'select', label:'attention backend', opts:['','FLASHINFER','FLASH_ATTN','TRITON_ATTN']},
+    {k:'flash_attn_version', t:'select', label:'FlashAttention version', opts:['','2','3','4']},
+    {k:'enforce_eager', t:'select', label:'enforce eager (skip CUDA graphs)', opts:['on','off']}
   ],
   ollama: [
     {k:'model', t:'text', label:'model tag', ph:'hf.co/unsloth/Qwen3-VL-8B-Instruct-GGUF:UD-Q4_K_XL'},
@@ -552,25 +1436,63 @@ function openEngineOpts(id){
   const spec=(CFG.engines||{})[id]||{};
   $('#engineOptsTitle').textContent=(spec.label||id)+' — options';
   const body=$('#engineOptsBody'); body.innerHTML='';
-  (OPT_SPECS[id]||[]).forEach(f=>{
-    const cur=spec[f.k];
-    let inp;
-    if(f.t==='select'){
-      inp=`<select id="eo_${f.k}" style="width:100%">`+f.opts.map(o=>`<option value="${o}" ${String(cur||'')===String(o)?'selected':''}>${o===''?'(none)':o}</option>`).join('')+`</select>`;
-    } else {
-      inp=`<input id="eo_${f.k}" type="${f.t}" ${f.step?`step="${f.step}"`:''} value="${cur==null?'':cur}" placeholder="${f.ph||''}" style="width:100%">`;
-    }
-    const d=document.createElement('div'); d.innerHTML=`<div class="label">${f.label}</div>${inp}`; body.appendChild(d);
-  });
-  $('#engineOptsNote').textContent = id==='vllm'
-    ? 'Used by ~/serve-vllm.sh when you activate vLLM. Model must be GPU-native (AWQ/FP8/GPTQ) and fit 16 GB — NOT a GGUF IQ-quant.'
-    : 'Ollama loads the model on first request; pull it first: ollama pull <model tag>.';
+  if(id==='llamacpp'){
+    // llama.cpp has no single "model" field — its model comes from ~/models. Give it a
+    // picker; Applying restarts llama.cpp on that model, keeping the current ctx/KV/parallel.
+    // Only models that actually have weights on disk: a missing entry is unlaunchable
+    // here, and listing it made the picker advertise what cannot be served.
+    const list = (MODELS.length ? MODELS
+      : Object.keys(CFG.models||{}).map(k=>({id:k,config_id:k,label:(CFG.models[k]||{}).label||k,vision:(CFG.models[k]||{}).vision,configured:true,dir:(CFG.models[k]||{}).dir})))
+      .filter(m=>!m.missing);
+    const opts = list.map(m=>{ const val=m.config_id||m.id;
+      return `<option value="${val}" data-dir="${m.dir||''}" data-new="${m.configured?'':'1'}">${(m.label||m.id)}${m.vision?' (vision)':''}${m.size_gb?(' · '+m.size_gb+'GB'):''}${m.configured?'':' (new — will register)'}</option>`; }).join('');
+    const d=document.createElement('div'); d.innerHTML=`<div class="label">Model (from ~/models)</div><select id="eo_llm_model" style="width:100%">${opts||'<option>(no models found)</option>'}</select>`;
+    body.appendChild(d);
+    const r=(LAST&&LAST.running)||{};
+    $('#engineOptsNote').textContent = `Applying restarts llama.cpp serving the chosen model at the current context (${r.ctx?r.ctx.toLocaleString():'—'}) / KV (${r.kv||'—'}) / parallel (${r.parallel??'—'}). To change context or KV too, edit a preset (✏️) and Apply it.`;
+    $('#engineOptsSave').textContent='Apply model (restart)';
+  } else {
+    (OPT_SPECS[id]||[]).forEach(f=>{
+      const cur=spec[f.k];
+      let inp;
+      if(f.t==='select'){
+        inp=`<select id="eo_${f.k}" style="width:100%">`+f.opts.map(o=>`<option value="${o}" ${String(cur||'')===String(o)?'selected':''}>${o===''?'(none)':o}</option>`).join('')+`</select>`;
+      } else {
+        inp=`<input id="eo_${f.k}" type="${f.t}" ${f.step?`step="${f.step}"`:''} value="${cur==null?'':cur}" placeholder="${f.ph||''}" style="width:100%">`;
+      }
+      const d=document.createElement('div'); d.innerHTML=`<div class="label">${f.label}</div>${inp}`; body.appendChild(d);
+    });
+    $('#engineOptsNote').textContent = id==='vllm'
+      ? 'Used by ~/serve-vllm.sh when you activate vLLM. Model must be GPU-native (AWQ/FP8/GPTQ) and fit 16 GB — NOT a GGUF IQ-quant.'
+      : 'Ollama loads the model on first request; pull it first: ollama pull <model tag>.';
+    $('#engineOptsSave').textContent='Save options';
+  }
   const c=$('#engineOpts'); c.style.display='block'; c.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 $('#engineOptsClose').onclick=()=>{ $('#engineOpts').style.display='none'; };
 $('#engineOptsSave').onclick=async()=>{
   if(!key()){ toast('Enter the API key first','bad'); return; }
   if(!OPT_ENGINE) return;
+  if(OPT_ENGINE==='llamacpp'){
+    // apply = restart llama.cpp on the chosen model, keeping current ctx/kv/parallel
+    const sel=$('#eo_llm_model'), o=(sel&&sel.options[sel.selectedIndex])||{dataset:{}}, model=sel&&sel.value;
+    if(!model){ toast('no model selected','bad'); return; }
+    if(o.dataset && o.dataset.new==='1' && o.dataset.dir){
+      await api('/api/models',{method:'POST',body:JSON.stringify({op:'add',id:model,dir:o.dataset.dir,vision:false,label:model})});
+      await refreshModels();
+    }
+    const r=(LAST&&LAST.running)||{};
+    const custom={model, ctx:r.ctx||98304, kv:r.kv||'q4_0', parallel:r.parallel||1};
+    if(!confirm('Restart llama.cpp serving "'+model+'"\n(ctx '+custom.ctx.toLocaleString()+', kv '+custom.kv+', parallel '+custom.parallel+')?\n~30–60s downtime.')) return;
+    let {status,j}=await api('/api/switch',{method:'POST',body:JSON.stringify({custom})});
+    if(status===409 && j.error==='over_vram_budget'){
+      if(!confirm('Estimated '+j.est_gb+' GB is over budget. Try anyway?')) return;
+      custom.model=model; ({status,j}=await api('/api/switch',{method:'POST',body:JSON.stringify({custom,force:true})}));
+    }
+    if(status===202){ $('#engineOpts').style.display='none'; toast('Restarting llama.cpp → '+model+'…','ok'); }
+    else toast(j.error||j.message||'failed','bad');
+    return;
+  }
   const body={engine:OPT_ENGINE};
   (OPT_SPECS[OPT_ENGINE]||[]).forEach(f=>{ const el=$('#eo_'+f.k); if(!el) return;
     let v=el.value; if(f.t==='number') v=(v===''?null:Number(v)); body[f.k]=v; });
@@ -584,19 +1506,29 @@ function loadRuntime(){
   const rt=CFG.runtime||{}, set=(id,v)=>{ const el=$(id); if(el) el.value=(v===null||v===undefined)?'':v; };
   set('#rt_thinking', rt.thinking||'auto'); set('#rt_reason_effort', rt.reason_effort||'');
   set('#rt_context_shift', rt.context_shift||'off'); set('#rt_cache_reuse', rt.cache_reuse);
+  set('#rt_flash_attn', rt.flash_attn||'on'); set('#rt_kv_unified', rt.kv_unified||'');
+  set('#rt_mtp', mtpToUi(rt.spec_type||'draft-mtp', rt.spec_n_max) || '2');
+  const mn=$('#mtpGlobalNote');
+  if(mn){ mn.style.display = specOn(undefined) ? 'none' : 'flex';
+    mn.innerHTML = '<span><b>MTP is off globally.</b> Presets that ask for MTP will still start '
+      + 'without it — this switch wins. Presets that need MTP off (the big-context ones) are '
+      + 'unaffected either way.</span>'; }
   set('#rt_image_min_tokens', rt.image_min_tokens); set('#rt_extra_flags', rt.extra_flags||'');
   const ph=(id,v)=>{ const el=$(id); if(el) el.placeholder=v; };
   ph('#rt_cache_reuse','256 (default)'); ph('#rt_image_min_tokens','1024 (default)');
   const c=CFG.compaction||{};
-  $('#compactionNote').innerHTML = c.trigger_pct? `<b>Compaction</b> is harness-side: ${c.strategy}, trigger ~${Math.round(c.trigger_pct*100)}% of slot context, reserve ${c.reserve_tokens} tok. llama.cpp does NOT auto-compact — with context-shift off it errors when full.`:'';
+  const cn=$('#compactionNote'); cn.style.display = c.trigger_pct ? 'flex' : 'none';
+  cn.innerHTML = c.trigger_pct? `<b>Compaction</b> is harness-side: ${c.strategy}, trigger ~${Math.round(c.trigger_pct*100)}% of slot context, reserve ${c.reserve_tokens} tok. llama.cpp does NOT auto-compact — with context-shift off it errors when full.`:'';
 }
 async function saveRuntime(apply){
   if(!key()){ toast('Enter the API key first','bad'); return; }
   const num=id=>{ const v=$(id).value.trim(); return v===''?null:Number(v); };
   if(apply && !confirm('Save and RESTART the local model now?\n~30–60s downtime; in-flight requests dropped.')) return;
   const body={ thinking:$('#rt_thinking').value, reason_effort:$('#rt_reason_effort').value||null,
-    context_shift:$('#rt_context_shift').value, cache_reuse:num('#rt_cache_reuse'),
-    image_min_tokens:num('#rt_image_min_tokens'), extra_flags:$('#rt_extra_flags').value.trim(), apply:!!apply };
+    context_shift:$('#rt_context_shift').value, flash_attn:$('#rt_flash_attn').value, cache_reuse:num('#rt_cache_reuse'),
+    kv_unified:$('#rt_kv_unified').value||null,
+    image_min_tokens:num('#rt_image_min_tokens'), extra_flags:$('#rt_extra_flags').value.trim(),
+    ...mtpFromUi($('#rt_mtp').value), apply:!!apply };
   const {status,j}=await api('/api/runtime',{method:'POST',body:JSON.stringify(body)});
   if(status===200){ CFG.runtime=j.runtime; toast(apply?(j.applied?'Saved — restarting model…':'Saved (no running model to restart)'):'Saved — applies on next restart','ok'); }
   else toast(j.error||'failed','bad');
@@ -609,41 +1541,140 @@ function presetById(id){ return CFG.presets.find(p=>p.id===id); }
 function barClass(gb){ const cap=CFG.estimator.cap_gb, warn=CFG.estimator.warn_gb;
   return gb>cap?'bad':(gb>warn?'warn':''); }
 
+// ---------- drag a preset card to reorder ----------
+let DRAG_EL=null;
+function wirePresetDrag(el){
+  el.draggable=true;
+  el.addEventListener('dragstart',e=>{
+    if(e.target.closest('button,input,select,a')){ e.preventDefault(); return; }
+    DRAG_EL=el; el.classList.add('dragging');
+    e.dataTransfer.effectAllowed='move';
+    try{ e.dataTransfer.setData('text/plain', el.dataset.id||''); }catch(_){}
+  });
+  el.addEventListener('dragend',()=>{ el.classList.remove('dragging'); DRAG_EL=null; savePresetOrder(); });
+  el.addEventListener('dragover',e=>{
+    if(!DRAG_EL || DRAG_EL===el) return;
+    e.preventDefault(); e.dataTransfer.dropEffect='move';
+    const kids=[...$('#presetGrid').children];
+    if(kids.indexOf(DRAG_EL) < kids.indexOf(el)) el.after(DRAG_EL); else el.before(DRAG_EL);
+  });
+  el.addEventListener('drop',e=>e.preventDefault());
+}
+async function savePresetOrder(){
+  const order=[...$('#presetGrid').children].map(el=>el.dataset.id).filter(Boolean);
+  if(order.join('|')===CFG.presets.map(p=>p.id).join('|')) return;   // nothing actually moved
+  if(!key()){ toast('Enter the API key first','bad'); renderPresets(); return; }
+  const {status,j}=await api('/api/preset',{method:'POST',body:JSON.stringify({op:'reorder',order})});
+  if(status===200){
+    const by={}; CFG.presets.forEach(p=>by[p.id]=p);
+    CFG.presets=(j.order||order).map(id=>by[id]).filter(Boolean);
+    renderProfiles(); paintStars();
+    toast('Preset order saved','ok');
+  } else { toast(j.error||'could not save the new order','bad'); await loadCfg(); }
+}
+
 function renderPresets(){
   const g = $('#presetGrid'); g.innerHTML='';
   const total = CFG.gpu.vram_total_gb;
   CFG.presets.forEach(p=>{
-    const gb = p.vram_gb ?? estVram(p.ctx,p.kv);
+    const globalOff = !specOn(undefined);          // runtime master switch
+    const wantsMtp  = specOn(p.spec_type) && !p.mtp_unavailable;
+    const effMtp    = wantsMtp && !globalOff;
+    // an unavailable head is not going to be loaded, so do not bill the preset for it
+    const specEff = p.mtp_unavailable ? 'none' : p.spec_type;
+    let gb = p.vram_gb ?? estVramModel(p.model,p.ctx,p.kv,specEff,p.parallel,p.vision);
+    // /presets.json fills vram_gb in for presets that carry no measurement, so the flag
+    // it sets alongside is what says which one this is -- a non-null value alone does not.
+    let measured = p.vram_measured!==undefined ? !!p.vram_measured : (p.vram_gb!=null);
+    if(measured && wantsMtp && !effMtp){          // measured figure included MTP
+      gb = gb - mtpCostGb(p.ctx,p.model); measured = false;
+    }
     const pct = Math.min(100, gb/total*100);
     const el = document.createElement('div');
     el.className='preset'; el.dataset.id=p.id;
     el.innerHTML = `
-      <div class="star" data-star></div>
       <div class="row cardhead" style="justify-content:space-between">
-        <span class="name">${p.id}</span>
+        <span class="grip" title="Drag to reorder"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>
+        <span class="name" style="flex:1;min-width:0">${p.id}</span>
+        <span class="star" data-star></span>
+        <span class="livebadge" data-livebadge>live</span>
         ${p.tag?`<span class="tag ${p.tag}">${p.tag}</span>`:''}
       </div>
+      <div class="pmodel trunc mono" title="${p.model||''}">${p.model||'—'}</div>
       <div class="note">${p.note||''}</div>
       <div class="specs">
         <div><div class="label">KV</div><b>${p.kv}</b></div>
-        <div><div class="label">Context</div><b>${fmtCtx(p.ctx)}</b></div>
-        <div><div class="label">Parallel</div><b>${p.parallel||1}</b></div>
-        <div><div class="label">~VRAM</div><b>${gb.toFixed(1)} GB</b></div>
+        <div><div class="label">Context</div><b>${fmtCtx(p.ctx)}${p.parallel==='auto'?`<span style="color:var(--ok);font-weight:500"> · shared</span>`:((p.parallel||1)>1?((CFG.runtime||{}).kv_unified==='on'?`<span style="color:var(--ok);font-weight:500"> · shared</span>`:`<span style="color:var(--warn);font-weight:500"> · ${fmtCtx(Math.floor(p.ctx/(p.parallel||1)))}/slot</span>`):'')}</b></div>
+        <div><div class="label">Slots</div><b>${p.parallel==='auto'?'auto':(p.parallel||1)}</b></div>
+        <div><div class="label" data-vlabel>${measured?'VRAM':'~VRAM'}</div><b data-vval>${gb.toFixed(1)} GB${p.vram_exact===false?'<span title="This model\'s size could not be measured, so the figure ignores it" style="color:var(--warn)"> ?</span>':''}</b></div>
+        <div><div class="label">MTP</div><b>${p.mtp_unavailable?'<span style="color:var(--bad)" title="This preset asks for MTP but its GGUF has no NextN head, and no mtp-*.gguf draft sits beside it. It starts WITHOUT MTP — pick the -mtp build of this model, or set MTP to off so the preset says what it does.">n/a</span>':(effMtp?(p.spec_n_max||2):'off')}${(wantsMtp&&!effMtp&&!p.mtp_unavailable)?'<span style="color:var(--warn)" title="This preset asks for MTP, but the global MTP switch in Runtime is off"> ·global</span>':''}</b></div>
+        ${p.measured_tps?`<div><div class="label">tok/s</div><b title="${(wantsMtp&&!effMtp)?'Measured with MTP on — expect slower now that MTP is off globally':'Measured on this box, not estimated'}">${p.measured_tps}${(wantsMtp&&!effMtp)?'*':''}</b></div>`:''}
       </div>
-      <div class="minibar ${barClass(gb)}"><span style="width:${pct}%"></span></div>
+      <div class="minibar ${barClass(gb)}" data-vbar><span style="width:${pct}%"></span></div>
       <div class="pbtns">
-        <button class="primary sm" data-apply>Apply</button>
-        <button class="ghost sm" data-edit title="Edit this preset's settings">✏️</button>
-        <button class="ghost sm" data-mkdef title="Set as ⭐ Default profile">⭐</button>
-        <button class="ghost sm" data-mktest title="Set as 🧪 Testing profile">🧪</button>
+        <button class="primary sm" data-apply style="flex:1">Apply</button>
+        <button class="ghost sm icon" data-edit title="Edit this preset's settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m14.5 5.5 4 4"/></svg></button>
+        <button class="ghost sm icon" data-mkdef title="Set as the Default profile"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="m12 3.6 2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8Z"/></svg></button>
       </div>`;
+    el.dataset.measured=measured?'1':''; el.dataset.estGb=gb.toFixed(1); el.dataset.estClass=barClass(gb); el.dataset.estPct=pct;
     el.querySelector('[data-apply]').onclick=()=>apply({preset:p.id}, p.id, gb);
     el.querySelector('[data-edit]').onclick=()=>openPresetEditor(p);
     el.querySelector('[data-mkdef]').onclick=()=>setProfile('default',p.id);
-    el.querySelector('[data-mktest]').onclick=()=>setProfile('testing',p.id);
+    wirePresetDrag(el);
     g.appendChild(el);
   });
   paintStars();
+}
+
+const STAR_MARK='<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><title>Default profile</title><path d="m12 3.6 2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8Z"/></svg>';
+
+function paintActiveProfile(s){
+  const run=s.running, g=s.gpu||{}, mp=s.matched_preset;
+  if(!$('#actPreset')) return;
+  if(!run){
+    $('#actPreset').textContent='server offline';
+    $('#actModel').textContent='—'; $('#actMeta').textContent=''; $('#actVram').textContent='—';
+    return;
+  }
+  $('#actPreset').textContent = mp || 'custom (no matching preset)';
+  const mf=run.model_file||'';
+  $('#actModel').textContent = mf.replace(/\.gguf$/i,'') || '—';
+  $('#actModel').title = mf;
+  const par=run.parallel??1;
+  $('#actMeta').textContent = `${run.kv||'—'} · ${run.ctx?fmtCtx(run.ctx):'—'} ctx`
+    + (par>1?(run.kv_unified==='on'?` · ${par} slots sharing one pool`:` · ${par} slots → ${fmtCtx(Math.floor(run.ctx/par))} each`):` · ${par} slot`)
+    + (run.thinking?` · thinking ${run.thinking}`:'');
+  if(g.used_mib!=null && g.total_mib){
+    const usedGb=g.used_mib/1024, pct=usedGb/(g.total_mib/1024)*100;
+    $('#actVram').textContent=usedGb.toFixed(1)+' GB';
+    $('#actVram').style.color = pct>96?'var(--bad)':pct>90?'var(--warn)':'var(--muted)';
+  }
+}
+
+function paintLivePreset(s){
+  const live=s.matched_preset, g=s.gpu||{};
+  const totGb=g.total_mib?g.total_mib/1024:null, usedGb=g.used_mib!=null?g.used_mib/1024:null;
+  document.querySelectorAll('#presetGrid .preset').forEach(el=>{
+    const isLive = !!live && el.dataset.id===live;
+    el.classList.toggle('live', isLive);
+    const badge=el.querySelector('[data-livebadge]');
+    if(badge) badge.style.display = isLive ? 'inline-flex' : 'none';
+    const lab=el.querySelector('[data-vlabel]'), val=el.querySelector('[data-vval]'),
+          bar=el.querySelector('[data-vbar]');
+    if(!lab||!val||!bar) return;
+    if(isLive && usedGb!=null && totGb){
+      const pct=Math.min(100, usedGb/totGb*100);
+      lab.textContent='VRAM now';
+      val.textContent=usedGb.toFixed(1)+' GB';
+      bar.className='minibar '+(pct>96?'bad':pct>90?'warn':'');
+      bar.firstElementChild.style.width=pct+'%';
+    } else {
+      lab.textContent=el.dataset.measured?'VRAM':'~VRAM';
+      val.textContent=el.dataset.estGb+' GB';
+      bar.className='minibar '+(el.dataset.estClass||'');
+      bar.firstElementChild.style.width=(el.dataset.estPct||0)+'%';
+    }
+  });
 }
 
 function paintStars(){
@@ -651,16 +1682,52 @@ function paintStars(){
   document.querySelectorAll('#presetGrid .preset').forEach(el=>{   // preset cards only
     const star = el.querySelector('[data-star]'); if(!star) return;
     const id = el.dataset.id; let s='';
-    if(pr.default===id) s+='⭐'; if(pr.testing===id) s+='🧪';
-    star.textContent=s;
+    if(pr.default===id) s += STAR_MARK;
+    star.innerHTML=s;
   });
 }
 
+// ---------- auto-switch ----------
+async function asApi(body){
+  const {status,j} = await api('/api/auto_switch',{method:'POST',body:JSON.stringify(body)});
+  if(status===200){ CFG.auto_switch = j.auto_switch||CFG.auto_switch; renderAutoSwitch(); }
+  else toast(j.error||'auto-switch save failed','bad');
+}
+function renderAutoSwitch(){
+  const as = CFG.auto_switch||{enabled:false,map:{}};
+  $('#asEnabled').checked = !!as.enabled;
+  const sel = $('#asPreset'); sel.innerHTML='';
+  (CFG.presets||[]).forEach(p=>{ const o=document.createElement('option'); o.value=p.id;
+    o.textContent=`${p.id} · ${p.kv} · ${fmtCtx(p.ctx)}`; sel.appendChild(o); });
+  const rows = $('#asRows'); rows.innerHTML='';
+  Object.entries(as.map||{}).forEach(([alias,pid])=>{
+    const p=(CFG.presets||[]).find(x=>x.id===pid);
+    const fromTag = !!(p && p.tag && alias===p.tag.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''));
+    const row=document.createElement('div');
+    row.className='row'; row.style.cssText='gap:8px;align-items:center';
+    row.innerHTML=`<span class="mono" style="flex:1;font-size:12.5px">${alias}</span>
+      <span class="muted" style="font-size:12px">→ ${pid}${p?` (${p.kv} · ${fmtCtx(p.ctx)})`:''}</span>
+      ${fromTag?'<span class="tag text" title="Derived from the preset\'s tag — rename or clear the tag to change/remove this mapping">tag</span>':
+        `<button class="ghost sm icon" title="Remove manual alias"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></button>`}`;
+    const b=row.querySelector('button');
+    if(b) b.onclick=()=>asApi({op:'delete',alias});
+    rows.appendChild(row);
+  });
+  $('#asState').textContent = as.enabled ? 'ON — router switches on unmapped→mapped model names' : 'off';
+}
+$('#asEnabled').onchange=async()=>{ await asApi({op:$('#asEnabled').checked?'enable':'disable'}); };
+$('#asAdd').onclick=async()=>{
+  const alias=$('#asAlias').value.trim(), pid=$('#asPreset').value;
+  if(!alias){ toast('Enter the client model name','bad'); return; }
+  await asApi({op:'upsert',alias,preset:pid});
+  $('#asAlias').value='';
+};
+
 function renderProfiles(){
-  ['Default','Testing'].forEach(slot=>{
+  ['Default'].forEach(slot=>{
     const sel=$('#sel'+slot); sel.innerHTML='';
     CFG.presets.forEach(p=>{ const o=document.createElement('option'); o.value=p.id;
-      o.textContent=`${p.id}  ·  ${p.kv} · ${fmtCtx(p.ctx)} · ~${(p.vram_gb??estVram(p.ctx,p.kv)).toFixed(1)}GB`;
+      o.textContent=`${p.id}  ·  ${p.kv} · ${fmtCtx(p.ctx)} · ~${(p.vram_gb??estVramModel(p.model,p.ctx,p.kv,p.spec_type,p.parallel,p.vision)).toFixed(1)}GB`;
       sel.appendChild(o); });
     sel.value = CFG.profiles[slot.toLowerCase()] || CFG.presets[0].id;
     sel.onchange = ()=>{ setProfile(slot.toLowerCase(), sel.value); };
@@ -668,31 +1735,45 @@ function renderProfiles(){
   updProfMeta();
 }
 function updProfMeta(){
-  const d=presetById($('#selDefault').value), t=presetById($('#selTesting').value);
-  if(d)$('#defMeta').textContent=`${d.kv} · ${fmtCtx(d.ctx)} ctx · ~${(d.vram_gb??estVram(d.ctx,d.kv)).toFixed(1)} GB · ${d.note||''}`;
-  if(t)$('#testMeta').textContent=`${t.kv} · ${fmtCtx(t.ctx)} ctx · ~${(t.vram_gb??estVram(t.ctx,t.kv)).toFixed(1)} GB · ${t.note||''}`;
+  const d=presetById($('#selDefault').value);
+  if(d)$('#defMeta').textContent=`${d.model} · ${d.kv} · ${fmtCtx(d.ctx)} ctx · ~${(d.vram_gb??estVramModel(d.model,d.ctx,d.kv,d.spec_type,d.parallel,d.vision)).toFixed(1)} GB · ${d.note||''}`;
 }
 
-$('#applyDefault').onclick=()=>{ const id=$('#selDefault').value,p=presetById(id); apply({preset:id},id,p.vram_gb??estVram(p.ctx,p.kv)); };
-$('#applyTesting').onclick=()=>{ const id=$('#selTesting').value,p=presetById(id); apply({preset:id},id,p.vram_gb??estVram(p.ctx,p.kv)); };
+$('#applyDefault').onclick=()=>{ const id=$('#selDefault').value,p=presetById(id);
+  apply({preset:id},id,p.vram_gb??estVramModel(p.model,p.ctx,p.kv,p.spec_type,p.parallel,p.vision)); };
+$('#btnReapply').onclick=()=>{ const id=(LAST||{}).matched_preset, p=id&&presetById(id);
+  if(!p){ toast('No preset matches what is running — apply one from the grid','bad'); return; }
+  apply({preset:id},id,p.vram_gb??estVramModel(p.model,p.ctx,p.kv,p.spec_type,p.parallel,p.vision)); };
 
 async function setProfile(slot,preset){
   if(!key()){ toast('Enter the API key first (top-right)','bad'); return; }
   const {status,j}=await api('/api/profile',{method:'POST',body:JSON.stringify({slot,preset})});
-  if(status===200){ CFG.profiles=j.profiles; $('#sel'+slot[0].toUpperCase()+slot.slice(1)).value=preset; paintStars(); updProfMeta(); toast(`${slot==='default'?'⭐ Default':'🧪 Testing'} → ${preset}`,'ok'); }
+  if(status===200){ CFG.profiles=j.profiles; $('#sel'+slot[0].toUpperCase()+slot.slice(1)).value=preset; paintStars(); updProfMeta(); toast(`${slot==='default'?'Default':'Testing'} profile → ${preset}`,'ok'); }
   else toast(j.error||'failed','bad');
 }
 
 // ---------- preset editor ----------
-let PE_MODE='edit';
+let PE_MODE='edit', PE_ORIG='';
 function populatePeModel(current){
   const sel=$('#pe_model'); if(!sel) return; sel.innerHTML='';
-  const list = MODELS.length ? MODELS
-    : Object.keys(CFG.models||{}).map(id=>({id, config_id:id, label:(CFG.models[id]||{}).label||id, vision:(CFG.models[id]||{}).vision, configured:true, dir:(CFG.models[id]||{}).dir}));
+  // Same rule as the engine picker: missing weights cannot be applied from a preset.
+  const list = (MODELS.length ? MODELS
+    : Object.keys(CFG.models||{}).map(id=>({id, config_id:id, label:(CFG.models[id]||{}).label||id, vision:(CFG.models[id]||{}).vision, configured:true, dir:(CFG.models[id]||{}).dir})))
+    .filter(m=>!m.missing);
   list.forEach(m=>{
     const val=m.config_id||m.id, o=document.createElement('option');
     o.value=val; o.dataset.dir=m.dir||''; o.dataset.new=(m.configured?'':'1');
-    o.textContent=(m.label||m.id)+(m.vision?' 👁':'')+(m.size_gb?` · ${m.size_gb}GB`:'')+(m.configured?'':' (new — will register)');
+    // Say what each build IS, so two entries from the same folder are told apart at a
+    // glance: the plain and the -mtp GGUF differ only in whether MTP is there at all.
+    const bits=[];
+    if(m.size_gb) bits.push(m.size_gb+' GB');
+    if(m.mtp_embedded) bits.push('MTP head');
+    else if((m.mtp_draft_files||[]).length) bits.push('MTP via '+m.mtp_draft_files.length+' draft file'+(m.mtp_draft_files.length>1?'s':''));
+    else bits.push('no MTP');
+    bits.push(m.vision?'vision':'text only');
+    if(m.arch) bits.push(m.arch);
+    o.textContent=(m.label||m.id)+(bits.length?'  ·  '+bits.join(' · '):'')+(m.configured?'':'  (new — will register)');
+    o.title=(m.gguf||'')+(m.dir?'\nin '+m.dir:'');
     sel.appendChild(o);
   });
   if(current) sel.value=current;
@@ -703,41 +1784,168 @@ function openPresetEditor(p){
   p = p || {id:'', kv:'q4_0', ctx:98304, parallel:1, ngl:99};
   $('#presetEditorTitle').textContent = PE_MODE==='new' ? 'New preset' : ('Edit preset · '+p.id);
   const set=(id,v)=>{ const el=$(id); if(el) el.value=(v==null?'':v); };
-  set('#pe_id',p.id); $('#pe_id').readOnly = (PE_MODE==='edit');
+  set('#pe_id',p.id); PE_ORIG = (PE_MODE==='edit') ? p.id : '';
+  $('#pe_id').readOnly = false;
   populatePeModel(p.model||'qwen3-vl');
-  set('#pe_kv',p.kv||'q4_0'); set('#pe_ctx',p.ctx); set('#pe_parallel',p.parallel||1); set('#pe_ngl',p.ngl||99);
+  set('#pe_kv',p.kv||'q4_0'); set('#pe_ctx',p.ctx); set('#pe_ngl',p.ngl==null?99:p.ngl);
+  set('#pe_n_cpu_moe',p.n_cpu_moe); set('#pe_lazy_mode',p.lazy_mode||'');
+  $('#pe_parallel').value = (p.parallel==='auto') ? 'auto' : String(p.parallel||1);
   set('#pe_thinking',p.thinking||''); set('#pe_reason_effort',p.reason_effort||''); set('#pe_context_shift',p.context_shift||'');
   set('#pe_cache_reuse',p.cache_reuse); set('#pe_image_min_tokens',p.image_min_tokens);
+  set('#pe_mtp', mtpToUi(p.spec_type, p.spec_n_max));
+  set('#pe_mtp_head', p.mtp_head||''); set('#pe_spec_draft_kv', p.spec_draft_kv||'');
+  set('#pe_load_mode', p.load_mode||''); set('#pe_fit_target', p.fit_target);
+  set('#pe_threads', p.threads);
+  set('#pe_kv_unified', p.kv_unified||'');
+  set('#pe_vision', p.vision||'');
   set('#pe_tag',p.tag||''); set('#pe_note',p.note||'');
   $('#pe_delete').style.display = (PE_MODE==='edit') ? 'inline-block' : 'none';
   updatePeEst();
   const c=$('#presetEditor'); c.style.display='block'; c.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
+// Qwen3.8-27B (dense + F16 projector) and Qwen3.8-Flash-Next (disk-streaming MoE) are
+// tuned by different knobs. Rather than let one family's fields imply they do anything
+// for the other, grey the irrelevant ones out and omit them from the save.
+function modelCaps(id){
+  const m=((CFG&&CFG.models)||{})[id]||{};
+  const kind=m.kind||'dense-vl';
+  // The scan reads blk.<n>.nextn.* straight out of the GGUF header, so it beats the
+  // config flag: the same quant ships with and without the head (GSQ-RCO IQ3_XXS vs
+  // IQ3_XXS-mtp) and nothing but the tensor table says which one is on disk.
+  const scanned=(MODELS||[]).find(x=>(x.config_id||x.id)===id);
+  const embedded = scanned && scanned.mtp_embedded!==undefined ? !!scanned.mtp_embedded
+                                                               : m.mtp_embedded;
+  return {kind,
+          mtp: m.supports_mtp!==false && kind!=='moe-stream' && embedded!==false,
+          mtp_embedded: !!embedded,
+          mmproj: (scanned ? !!scanned.vision : m.has_mmproj!==false) && kind!=='moe-stream',
+          moe: kind==='moe-stream'};
+}
+// field id -> [applies?, why not]
+function peFieldGate(caps){
+  const par=$('#pe_parallel')?$('#pe_parallel').value:'1';
+  return {
+    // one slot has nothing to share, and auto hardcodes kv_unified=true in server.cpp
+    '#pe_kv_unified': [par!=='auto' && effSlots(par)>1,
+                       par==='auto' ? 'auto forces shared' : 'single slot'],
+    '#pe_n_cpu_moe': [caps.moe, 'MoE-only'],
+    '#pe_lazy_mode': [caps.moe, 'MoE-only'],
+    '#pe_vision':    [caps.mmproj, 'no projector'],
+    '#pe_mtp':       [caps.mtp, caps.moe ? 'no MTP graph' : 'no head in this GGUF'],
+    // the head source and the draft's KV only mean anything once MTP is actually on
+    '#pe_mtp_head':      [caps.mtp && specOn(mtpFromUi($('#pe_mtp').value).spec_type), 'MTP off'],
+    '#pe_spec_draft_kv': [caps.mtp && specOn(mtpFromUi($('#pe_mtp').value).spec_type), 'MTP off'],
+    // --fit only adjusts arguments left UNSET; an explicit -ngl aborts it outright
+    '#pe_fit_target': [String($('#pe_ngl').value||'').trim().toLowerCase()==='auto',
+                       'needs ngl auto'],
+  };
+}
+// A model whose GGUF has no head can still run MTP from a separate mtp-*.gguf. List the
+// ones actually sitting in its directory so the choice is a pick, not a path to remember.
+function fillPeMtpHead(model){
+  const sel=$('#pe_mtp_head'); if(!sel) return;
+  const cur=sel.value;
+  const m=(MODELS||[]).find(x=>(x.config_id||x.id)===model)||{};
+  const cfgm=((CFG&&CFG.models)||{})[model]||{};
+  const files=m.mtp_draft_files||cfgm.mtp_draft_files||[];
+  [...sel.options].forEach(o=>{ if(o.dataset.file) o.remove(); });
+  files.forEach(f=>{ const o=document.createElement('option');
+    o.value=f; o.textContent='file — '+f; o.dataset.file='1'; sel.appendChild(o); });
+  sel.value=cur;
+  if(sel.value!==cur) sel.value='';
+}
+function applyPeModelKind(){
+  fillPeMtpHead(($('#pe_model')||{}).value);
+  const caps=modelCaps(($('#pe_model')||{}).value);
+  const gate=peFieldGate(caps);
+  Object.keys(gate).forEach(sel=>{
+    const el=$(sel); if(!el) return;
+    const f=el.closest('.field'); if(!f) return;
+    const [ok,why]=gate[sel];
+    f.classList.toggle('na', !ok);
+    let n=f.querySelector('.na-why');
+    if(!ok){
+      if(!n){ n=document.createElement('div'); n.className='na-why'; f.appendChild(n); }
+      // a value already stored here still sits in the preset; say so instead of wiping it
+      n.textContent = (el.value ? 'ignored — ' : 'n/a — ') + why + ' on this model';
+    } else if(n) n.remove();
+  });
+  // Flash-Next depends on --fit sizing the split, which an explicit -ngl aborts
+  const nglF=$('#pe_ngl') && $('#pe_ngl').closest('.field');
+  if(nglF){ let w=nglF.querySelector('.na-why');
+    if(caps.moe){ if(!w){ w=document.createElement('div'); w.className='na-why'; nglF.appendChild(w); }
+      w.textContent='use auto — an explicit -ngl aborts --fit'; }
+    else if(w) w.remove(); }
+  return caps;
+}
+function peOmitted(){   // fields the current model has no use for -> do not send them
+  const gate=peFieldGate(modelCaps(($('#pe_model')||{}).value));
+  return Object.keys(gate).filter(k=>!gate[k][0]);
+}
 function updatePeEst(){
-  const ctx=+$('#pe_ctx').value||0, kv=$('#pe_kv').value, gb=estVram(ctx,kv);
-  const tag = gb>CFG.estimator.cap_gb?'⚠ over budget':gb>CFG.estimator.warn_gb?'tight':'ok';
-  $('#pe_est').textContent = `~VRAM at load: ${gb.toFixed(2)} GB (${tag})`;
+  const ctx=+$('#pe_ctx').value||0, kv=$('#pe_kv').value, model=($('#pe_model')||{}).value;
+  const caps=applyPeModelKind();
+  const par=$('#pe_parallel').value==='auto'?'auto':+$('#pe_parallel').value;
+  const spec=mtpFromUi($('#pe_mtp').value).spec_type;
+  const vis=caps.mmproj ? ($('#pe_vision').value||'') : 'off';   // no projector => never loaded
+  const gb=estVramModel(model,ctx,kv,spec,par,vis), v=fitVerdict(gb);
+  const nS=effSlots(par);
+  $('#pe_est').innerHTML = `<b style="color:var(--${v.k});font-family:'IBM Plex Mono',monospace;font-size:15px">`
+    + `${gb.toFixed(2)} GB</b> <span class="muted">of ${CFG.gpu.vram_total_gb.toFixed(1)} GB — ${v.t}${sizeNote(model)}`
+    + (nS>1 ? ` · ${nS} slots cost ${slotGb(ctx,par).toFixed(2)} GB` : '')
+    + (par==='auto' ? ` · auto = 4 shared slots, ~3× slower per stream (25 vs 78 tok/s)` : '')
+    + (vis==='off'&&caps.mmproj ? ` · projector off saves ${(CFG.estimator.vision_gb||0).toFixed(2)} GB` : '')
+    + (caps.mtp ? (specOn(spec)
+        ? ` · MTP on costs ${mtpCostGb(ctx,model).toFixed(2)} GB (${modelHeadGb(model).toFixed(2)} GB head`
+          + ` + ${(mtpCostGb(ctx,model)-modelHeadGb(model)).toFixed(2)} GB draft KV)`
+        : ` · MTP off — the head in this GGUF is not loaded, saving ${mtpCostGb(ctx,model).toFixed(2)} GB`)
+      : (caps.moe ? '' : ` · this GGUF has no MTP head, so MTP is unavailable`))
+    + `</span>`;
 }
 $('#pe_ctx').oninput=updatePeEst; $('#pe_kv').onchange=updatePeEst;
+$('#pe_model').onchange=updatePeEst; $('#pe_parallel').onchange=updatePeEst;
+$('#pe_kv_unified').onchange=updatePeEst;
+$('#pe_mtp').onchange=updatePeEst; $('#pe_vision').onchange=updatePeEst;
+$('#pe_ngl').oninput=updatePeEst;   // ngl auto/explicit flips whether --fit applies
 $('#newPresetBtn').onclick=()=>openPresetEditor(null);
 $('#presetEditorClose').onclick=()=>{ $('#presetEditor').style.display='none'; };
 $('#pe_save').onclick=async()=>{
   if(!key()){ toast('Enter the API key first (top-right)','bad'); return; }
   const id=$('#pe_id').value.trim(); if(!id){ toast('id is required','bad'); return; }
   const num=i=>{ const v=$(i).value.trim(); return v===''?null:Number(v); };
+  const slotsVal=i=>{ const v=$(i).value.trim(); return v==='auto'?'auto':(v===''?null:Number(v)); };
+  const nglVal=i=>{ const v=$(i).value.trim().toLowerCase(); return (v===''||v==='auto')?'auto':Number(v); };
   const msel=$('#pe_model'), mopt=(msel&&msel.options[msel.selectedIndex])||{dataset:{}};
   const model = (msel&&msel.value) || 'qwen3-vl';
   if(mopt.dataset && mopt.dataset.new==='1' && mopt.dataset.dir){   // register a freshly-downloaded model on first use
     await api('/api/models',{method:'POST',body:JSON.stringify({op:'add',id:model,dir:mopt.dataset.dir,vision:false,label:model})});
     await refreshModels();
   }
-  const body={ op:'upsert', id, model, kv:$('#pe_kv').value,
-    ctx:num('#pe_ctx'), parallel:num('#pe_parallel'), ngl:num('#pe_ngl'),
+  const body={ op:'upsert', id, orig_id:PE_ORIG, model, kv:$('#pe_kv').value,
+    ctx:num('#pe_ctx'), parallel:slotsVal('#pe_parallel'), ngl:nglVal('#pe_ngl'),
+    n_cpu_moe:num('#pe_n_cpu_moe'), lazy_mode:$('#pe_lazy_mode').value,
     thinking:$('#pe_thinking').value, reason_effort:$('#pe_reason_effort').value, context_shift:$('#pe_context_shift').value,
     cache_reuse:num('#pe_cache_reuse'), image_min_tokens:num('#pe_image_min_tokens'),
+    ...mtpFromUi($('#pe_mtp').value),
+    mtp_head:$('#pe_mtp_head').value||null, spec_draft_kv:$('#pe_spec_draft_kv').value||null,
+    load_mode:$('#pe_load_mode').value||null, fit_target:num('#pe_fit_target'),
+    threads:num('#pe_threads'),
+    vision:$('#pe_vision').value||null, kv_unified:$('#pe_kv_unified').value||null,
     tag:$('#pe_tag').value.trim(), note:$('#pe_note').value.trim() };
+  // Whatever this model has no use for is left exactly as it was on disk: omitting the
+  // key means "don't touch", whereas sending "" would clear it. Switching a preset
+  // between the 27B and Flash-Next therefore never silently rewrites the other's knobs.
+  peOmitted().forEach(sel=>{
+    ({'#pe_n_cpu_moe':['n_cpu_moe'],'#pe_lazy_mode':['lazy_mode'],
+      '#pe_vision':['vision'],'#pe_mtp':['spec_type','spec_n_max'],
+      '#pe_mtp_head':['mtp_head'],'#pe_spec_draft_kv':['spec_draft_kv'],
+      '#pe_fit_target':['fit_target'],
+      '#pe_kv_unified':['kv_unified']}[sel]||[])
+      .forEach(k=>{ delete body[k]; });
+  });
   const {status,j}=await api('/api/preset',{method:'POST',body:JSON.stringify(body)});
-  if(status===200){ $('#presetEditor').style.display='none'; await loadCfg(); toast('Preset "'+id+'" saved','ok'); }
+  if(status===200){ $('#presetEditor').style.display='none'; await loadCfg();
+    toast(PE_ORIG&&PE_ORIG!==id ? `Renamed "${PE_ORIG}" to "${id}"` : 'Preset "'+id+'" saved','ok'); }
   else toast(j.error||'failed','bad');
 };
 $('#pe_delete').onclick=async()=>{
@@ -751,20 +1959,25 @@ $('#pe_delete').onclick=async()=>{
 // ---------- custom builder ----------
 function initCustom(){
   const r=$('#ctxRange');
-  r.max = Math.round(CFG.gpu.vram_total_gb*0)  // placeholder, set below
   r.max = 200704; // ~196k, sane upper bound for this box
+  // start from what is actually serving (or the Default profile), snapped to the step
+  const cur=((LAST&&LAST.running&&LAST.running.ctx)||(presetById((CFG.profiles||{}).default)||{}).ctx||98304);
+  r.value = Math.min(+r.max, Math.max(+r.min, Math.round(cur/8192)*8192));
+  const curKv=((LAST&&LAST.running&&LAST.running.kv)||(presetById((CFG.profiles||{}).default)||{}).kv);
+  if(curKv) $('#kvSel').value=curKv;
   const upd=()=>{
-    const ctx=+r.value, kv=$('#kvSel').value, par=+$('#parSel').value;
+    const ctx=+r.value, kv=$('#kvSel').value, parRaw=$('#parSel').value.trim(), par=parRaw==='auto'?0:+parRaw;
     $('#ctxVal').textContent=ctx.toLocaleString();
     $('#ctxPer').textContent = par>1?`(${fmtCtx(Math.floor(ctx/par))}/slot × ${par})`:'';
-    const gb=estVram(ctx,kv), total=CFG.gpu.vram_total_gb;
+    const gb=estVram(ctx,kv,undefined,par), total=CFG.gpu.vram_total_gb;
     $('#estVal').textContent=gb.toFixed(2)+' GB';
     $('#estOf').textContent='of '+total.toFixed(1)+' GB';
     const bar=$('#estBar'); bar.className='minibar '+barClass(gb);
     bar.firstElementChild.style.width=Math.min(100,gb/total*100)+'%';
-    $('#estNote').textContent = gb>CFG.estimator.cap_gb ? '⚠ over budget — likely OOM at load'
-      : gb>CFG.estimator.warn_gb ? '⚠ tight — little headroom for big images' : '✓ comfortable headroom';
-    $('#perSlot').textContent = par>1?`Each of ${par} slots gets ~${fmtCtx(Math.floor(ctx/par))} tokens of context.`:'Single big-context slot.';
+    $('#estNote').textContent = gb>CFG.estimator.cap_gb ? 'Over budget — likely OOM at load'
+      : gb>CFG.estimator.warn_gb ? 'Tight — little headroom for big images' : 'Comfortable headroom';
+    $('#perSlot').textContent = par>1?`Each of ${par} slots reserves ~${fmtCtx(Math.floor(ctx/par))} tokens.`
+      :(par===0?'Auto slots — llama.cpp picks, and they share one KV pool.':'Single big-context slot.');
     $('#kvHint').textContent = kv==='q4_0' ? 'q4_0: K-cache tolerates 4-bit well; V-cache a little lossier. Fine for most work.'
       : kv==='q8_0' ? 'q8_0: ~half the memory of f16, <0.1% quality loss. Great default for quality.'
       : 'f16: full precision KV, 2× memory. Rarely needed on 16 GB.';
@@ -772,17 +1985,29 @@ function initCustom(){
   r.oninput=upd; $('#kvSel').onchange=upd; $('#parSel').oninput=upd; upd();
 }
 $('#applyCustom').onclick=()=>{
-  const ctx=+$('#ctxRange').value, kv=$('#kvSel').value, par=+$('#parSel').value;
-  apply({custom:{ctx,kv,parallel:par,model:'qwen3-vl'}}, `custom ${kv} ${fmtCtx(ctx)}`, estVram(ctx,kv));
+  const ctx=+$('#ctxRange').value, kv=$('#kvSel').value, praw=$('#parSel').value.trim();
+  const par = praw==='auto'?'auto':+praw;
+  // use whatever the Default profile serves, not a hardcoded id that may be stale
+  const cm = (presetById((CFG.profiles||{}).default) || CFG.presets[0] || {}).model || BASE_MODEL;
+  apply({custom:{ctx,kv,parallel:par,model:cm}}, `custom ${cm} ${kv} ${fmtCtx(ctx)}`, estVramModel(cm,ctx,kv,undefined,par));
 };
 
 // ---------- apply / stop ----------
 async function apply(payload, label, gb){
   if(!key()){ toast('Enter the API key first (top-right) to apply changes','bad'); return; }
+  // Slots ARE costed in the estimate now (see slotGb). Auto is llama.cpp's -1 default,
+  // which server.cpp turns into exactly 4 slots — so say what it will really open.
+  const _p = payload.preset ? presetById(payload.preset) : null;
+  const parVal = payload.custom ? payload.custom.parallel : (_p ? _p.parallel : 1);
+  const nSlots = effSlots(parVal);
+  const slotWarn = (nSlots > 1)
+    ? `\n\n${parVal==='auto'||parVal==null?`Slots are AUTO — llama.cpp opens ${nSlots}`:`${nSlots} slots`}`
+      + ` sharing one KV pool. That is ~${slotGb(_p?_p.ctx:(payload.custom||{}).ctx||0,parVal).toFixed(1)} GB`
+      + ` of the ${gb.toFixed(1)} GB estimate. Set Slots to 1 to get it back.` : '';
   const over = gb>CFG.estimator.cap_gb;
-  const warn = over ? `\n\n⚠ Estimated ${gb.toFixed(1)} GB EXCEEDS the ~${CFG.estimator.cap_gb} GB budget — this may fail to load (OOM).` : '';
+  const warn = over ? `\n\nEstimated ${gb.toFixed(1)} GB EXCEEDS the ~${CFG.estimator.cap_gb} GB budget — this may fail to load (OOM).` : '';
   if(!confirm(`Switch the live server to:  ${label}\n(~${gb.toFixed(1)} GB VRAM)`
-      +`\n\nThis STOPS the running model for ~30–60s. Any in-flight request will be dropped.${warn}\n\nProceed?`)) return;
+      +`\n\nThis STOPS the running model for ~30–60s. Any in-flight request will be dropped.${warn}${slotWarn}\n\nProceed?`)) return;
   let body = Object.assign({}, payload); if(over) body.force=true;
   const {status,j}=await api('/api/switch',{method:'POST',body:JSON.stringify(body)});
   if(status===202){ toast(`Switching → ${label}…`,'ok'); }
@@ -801,6 +2026,42 @@ $('#btnStop').onclick=async()=>{
   toast(status===200?'Server stopped':(j.error||'failed'), status===200?'ok':'bad');
 };
 
+// ---------- system monitor ----------
+function meter(id, val, max, warnPct, badPct){
+  const el=$(id); if(!el) return;
+  const pct=(max&&val!=null)?Math.min(100,val/max*100):0;
+  el.className='mbar'+(pct>=(badPct||90)?' bad':pct>=(warnPct||70)?' warn':'');
+  el.firstElementChild.style.width=pct+'%';
+}
+function updateMonitor(s){
+  const g=s.gpu||{}, c=s.cpu||{}, set=(id,v)=>{ const el=$(id); if(el) el.textContent=(v==null?'—':v); };
+  set('#mGpuUtil', g.util_pct); meter('#mGpuUtilBar', g.util_pct, 100, 80, 95);
+  if(g.used_mib!=null){ set('#mVram',(g.used_mib/1024).toFixed(1)+' / '+(g.total_mib/1024).toFixed(0)); meter('#mVramBar',g.used_mib,g.total_mib,85,96); }
+  set('#mPow', g.power_w!=null?g.power_w.toFixed(0):'—'); meter('#mPowBar', g.power_w, g.power_limit_w||g.power_max_w, 85, 97);
+  set('#mTemp', g.temp_c); meter('#mTempBar', g.temp_c, 95, 78, 87);
+  set('#mClk', g.clock_mhz); meter('#mClkBar', g.clock_mhz, g.clock_max_mhz, 999, 999);
+  set('#mFan', g.fan_pct); meter('#mFanBar', g.fan_pct, 100, 80, 95);
+  set('#mCpu', c.util_pct); meter('#mCpuBar', c.util_pct, 100, 80, 95);
+  set('#mLoad', c.load1); $('#mCores').textContent=c.cores?c.cores+' cores':'';
+  if(c.ram_used_gb!=null){ set('#mRam', c.ram_used_gb+' / '+c.ram_total_gb); meter('#mRamBar', c.ram_used_gb, c.ram_total_gb, 80, 92); }
+  set('#mTps', s.tps!=null?s.tps.toFixed(1):'—'); $('#mEngine').textContent=s.running_engine||'';
+  const pr=$('#powRange');
+  if(pr && !pr.dataset.init && g.power_min_w!=null && g.power_max_w!=null){
+    pr.min=Math.floor(g.power_min_w); pr.max=Math.ceil(g.power_max_w); pr.step=5;
+    pr.value=Math.round(g.power_limit_w||g.power_max_w); pr.dataset.init='1';
+    $('#powVal').textContent=pr.value+' W';
+    pr.oninput=()=>{ $('#powVal').textContent=pr.value+' W'; };
+  }
+}
+$('#setPow').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  const w=+$('#powRange').value;
+  const {j}=await api('/api/power',{method:'POST',body:JSON.stringify({watts:w})});
+  if(j.ok) toast('GPU power limit → '+w+' W','ok');
+  else if(j.needs_sudo){ $('#powNote').textContent='needs sudo'; prompt('Power limit needs sudo — run this in a terminal:', j.hint||('sudo nvidia-smi -pl '+w)); }
+  else toast(j.error||j.err||'failed','bad');
+};
+
 // ---------- status polling ----------
 function setBar(el, big, l, r, used, total){
   const pct=total?Math.min(100,used/total*100):0;
@@ -810,6 +2071,20 @@ function setBar(el, big, l, r, used, total){
 async function poll(){
   try{
     const r=await fetch('/api/status'); const s=await r.json(); LAST=s;
+    renderInstalled();   // 'live' badge + Remove enablement follow the running model
+    updateMonitor(s);
+    // host power: capability, uptime, and the countdown banner
+    renderPower(s.system);
+    paintLivePreset(s);
+    paintActiveProfile(s);
+    $('#sysServer').textContent = s.running ? ('running · pid '+(s.running.pid??'—')) : 'stopped';
+    const pend=(s.system||{}).pending_power, pb=$('#powerBanner');
+    if(pend){
+      const left=Math.max(0, Math.round(pend.at-(s.server_time||Date.now()/1000)));
+      pb.className='banner show';
+      $('#powerMsg').textContent=(pend.op==='poweroff'?'Powering off':'Restarting')
+        +` in ${left}s — the model server will be stopped first.`;
+    } else pb.className='banner';
     // vram
     const g=s.gpu||{}; const total=s.vram_total_gb;
     if(g.total_mib){
@@ -827,8 +2102,9 @@ async function poll(){
     if(run){
       $('#curModel').textContent = (run.alias||run.model_file||'qwen3-vl') + (s.matched_preset?`  ·  ${s.matched_preset}`:'');
       $('#curKv').innerHTML =
-        kvItem('Engine',run.engine||'—')+kvItem('KV',run.kv||'—')+kvItem('Context',run.ctx?run.ctx.toLocaleString():'—')+
+        kvItem('Engine',run.engine||'—')+kvItem('KV',run.kv||'—')+kvItem('Context',run.ctx?(run.ctx.toLocaleString()+((run.parallel||1)>1?(run.kv_unified==='on'?' (shared)':` (${fmtCtx(Math.floor(run.ctx/(run.parallel||1)))}/slot)`):'')):'—')+
         kvItem('Parallel',run.parallel??'—')+kvItem('Thinking',run.thinking||'—')+kvItem('Ctx-shift',run.context_shift||'—')+
+        kvItem('MTP', specOn(run.spec_type) ? ('n='+(run.spec_n_max??2)) : 'off')+
         kvItem('~VRAM',run.vram_gb_est?run.vram_gb_est.toFixed(1)+' GB':'—')+kvItem('PID',run.pid??'—');
     } else {
       $('#curModel').textContent='(server offline)'; $('#curKv').innerHTML='';
@@ -843,8 +2119,15 @@ async function poll(){
     if(CFG){
       const ae=(CFG.endpoints||[]).find(e=>e.id===s.active_endpoint);
       $('#activeEp').textContent = ae?(ae.label||ae.id):(s.active_endpoint||'—');
-      if(CFG.active_endpoint!==s.active_endpoint){ CFG.active_endpoint=s.active_endpoint; renderEndpoints(); }
-      if(LAST_ENG!==s.running_engine || LAST_AENG!==s.active_engine){ renderEngines(s); LAST_ENG=s.running_engine; LAST_AENG=s.active_engine; }
+      CFG.active_endpoint=s.active_endpoint; CFG.active_engine=s.active_engine;
+      // re-render the local endpoint card when engine/model/active changes (its name is dynamic)
+      const epSig=s.active_endpoint+'|'+s.active_engine+'|'+s.running_engine+'|'+((s.running||{}).model_file||'');
+      if(epSig!==LAST_EPSIG){ renderEndpoints(); LAST_EPSIG=epSig; }
+      const engSig=JSON.stringify(s.engines_status||{})+'|'+s.running_engine+'|'+s.active_engine;
+      if(engSig!==LAST_ENGSIG){ renderEngines(s); LAST_ENGSIG=engSig; LAST_ENG=s.running_engine; LAST_AENG=s.active_engine; }
+      // the engine-options dialog is built from MODELS at open time, so a model that
+      // finishes downloading while it is open would not appear without this refresh
+      if($('#engineOpts')&&$('#engineOpts').style.display!=='none'&&OPT_ENGINE==='llamacpp') openEngineOpts('llamacpp');
     }
     // switch banner
     const sw=s.switch||{}; const b=$('#switchBanner');
@@ -859,13 +2142,473 @@ function kvItem(l,v){ return `<div><div class="label">${l}</div><b>${v}</b></div
 
 async function pollLog(){
   try{ const r=await fetch('/api/log?n=40'); const j=await r.json();
-    const el=$('#log'); const atBottom = el.scrollTop+el.clientHeight >= el.scrollHeight-30;
-    el.textContent=(j.lines||[]).join('\n')||'(log empty)';
-    if(atBottom) el.scrollTop=el.scrollHeight;
+    const el=$('#log'); const atTop = el.scrollTop <= 30;
+    el.textContent=(j.lines||[]).slice().reverse().join('\n')||'(log empty)';
+    if(atTop) el.scrollTop=0;   // newest first: stay pinned to the newest line
   }catch(e){}
 }
 
-(async function(){ await loadCfg(); poll(); pollLog(); setInterval(poll,2000); setInterval(pollLog,2500); })();
+// ---------- does this model fit? ----------
+// The estimator is a linear fit measured on the BASE model, so it only knows ctx/KV.
+// For any other model we shift it by the difference in on-disk weight size.
+const BASE_MODEL='qwen3-vl';
+function modelSize(id){
+  if(!id) return null;
+  const m=(MODELS||[]).find(m=>(m.config_id||m.id)===id);
+  return (m&&m.size_gb!=null)?+m.size_gb:null;
+}
+// Weight of the embedded NextN head, which llama.cpp TENSOR_SKIPs unless --spec-type
+// draft-mtp is passed. So it is part of the file on disk but NOT part of what is
+// resident while MTP is off -- for either this model or the one the fit was measured on.
+function modelHeadGb(id){
+  if(!id) return 0;
+  const m=(MODELS||[]).find(x=>(x.config_id||x.id)===id);
+  if(m&&m.mtp_head_gb!=null) return +m.mtp_head_gb;
+  const c=((CFG&&CFG.models)||{})[id]||{};
+  if(c.mtp_head_gb!=null) return +c.mtp_head_gb;
+  return c.mtp_embedded ? (((CFG&&CFG.estimator)||{}).mtp_head_gb||0.35) : 0;
+}
+// What turning MTP on actually costs THIS model: its own head weights plus the draft
+// KV/compute buffers. mtp_overhead_gb is a measured (on - off) delta on the base model,
+// so it already carries the base model's head -- swap that for this one's.
+function mtpCostGb(ctx,model){
+  const o=((CFG&&CFG.estimator)||{}).mtp_overhead_gb; if(!o) return 0;
+  return o[0]+o[1]*ctx/1000-modelHeadGb(BASE_MODEL)+modelHeadGb(model);
+}
+function estVramModel(model,ctx,kv,spec,parallel,vision){
+  const caps=modelCaps(model);
+  // no projector in the repo => it was never loaded, whatever the preset's vision says
+  const vis = caps.mmproj ? vision : 'off';
+  let gb=estVram(ctx,kv,spec,parallel,vis);
+  const a=modelSize(model), b=modelSize(BASE_MODEL);
+  if(a==null||b==null) return gb;
+  const headB=modelHeadGb(BASE_MODEL);
+  let loadedA=a;
+  if(!specOn(spec)) loadedA-=modelHeadGb(model);   // head skipped at load
+  else              gb-=headB;                     // mtpGb already carries the base head
+  return gb+loadedA-(b-headB);
+}
+function fitVerdict(gb){
+  const cap=CFG.estimator.cap_gb, warn=CFG.estimator.warn_gb;
+  if(gb>cap)  return {k:'bad',  t:'will not fit, expect OOM at load'};
+  if(gb>warn) return {k:'warn', t:'tight, little headroom for big images'};
+  return {k:'ok', t:'fits comfortably'};
+}
+function sizeNote(model){
+  const a=modelSize(model), b=modelSize(BASE_MODEL);
+  if(a==null) return '';
+  if(b==null) return ` · weights ${a.toFixed(1)} GB (estimator not calibrated for this model)`;
+  const d=a-b;
+  return ` · weights ${a.toFixed(1)} GB (${d>=0?'+':''}${d.toFixed(1)} GB vs ${BASE_MODEL})`;
+}
+
+// ---------- host power ----------
+function fmtDur(s){
+  if(s==null) return '—';
+  s=Math.floor(s); const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
+  if(d) return `${d}d ${h}h`;
+  if(h) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+let POWER_CAN=null;
+function renderPower(sys){
+  if(!sys) return;
+  $('#sysUptime').textContent=fmtDur(sys.uptime_s);
+  const cap=sys.power||{};
+  if(cap.can===POWER_CAN) return;          // only repaint when it actually changes
+  POWER_CAN=cap.can;
+  $('#powerSetup').style.display  = cap.can ? 'none' : 'block';
+  $('#powerActions').style.display= cap.can ? 'block' : 'none';
+  // the password route only makes sense while the passwordless one is unavailable
+  $('#powerPassword').style.display = cap.can ? 'none' : 'block';
+  if(!cap.can){
+    if(cap.hint) $('#powerHint').textContent=cap.hint;
+    $('#powerCmd').textContent=cap.install_cmd||'';
+  }
+}
+$('#copyPowerCmd').onclick=()=>{ navigator.clipboard?.writeText($('#powerCmd').textContent); toast('Setup command copied','ok'); };
+
+async function powerAction(op, pw){
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  const isOff = op==='poweroff';
+  const msg = (isOff?'Shut this machine down?':'Restart this machine?')
+    + '\n\nThe model server is stopped first, then the box goes down after a 60-second grace period.'
+    + (isOff?'\n\nThis box is headless — powering it back on needs physical access to the button.':'')
+    + '\n\nYou can cancel from the banner while the countdown runs.';
+  if(!confirm(msg)) return;
+  const payload={op,delay_s:60,stop_model:true};
+  if(pw) payload.password=pw;
+  const {status,j}=await api('/api/system',{method:'POST',body:JSON.stringify(payload)});
+  if(pw) $('#powerPw').value='';         // never leave it sitting in the DOM
+  if(status===202) toast((isOff?'Shutting down':'Restarting')+' in 60s — cancel from the banner','ok');
+  else if(status===403 && j.bad_password) toast('sudo rejected that password','bad');
+  else if(status===403){ POWER_CAN=null; toast('Not permitted yet — see the one-time setup','bad'); }
+  else toast(j.error||'failed','bad');
+}
+$('#btnPoweroff').onclick=()=>powerAction('poweroff');
+$('#btnReboot').onclick=()=>powerAction('reboot');
+$('#btnPoweroffPw').onclick=()=>{ const v=$('#powerPw').value;
+  if(!v){ toast('Enter the sudo password first','bad'); return; } powerAction('poweroff', v); };
+$('#btnRebootPw').onclick=()=>{ const v=$('#powerPw').value;
+  if(!v){ toast('Enter the sudo password first','bad'); return; } powerAction('reboot', v); };
+
+// ---------- benchmark ----------
+let BENCH_TIMER=null;
+function bnFill(){
+  const sel=$('#bn_model'); if(!sel) return; const cur=sel.value; sel.innerHTML='';
+  (MODELS||[]).filter(m=>m.configured).forEach(m=>{
+    const o=document.createElement('option'); o.value=m.config_id||m.id;
+    o.textContent=(m.label||m.id)+(m.size_gb?`  ·  ${m.size_gb} GB`:'');
+    sel.appendChild(o); });
+  if(cur) sel.value=cur;
+}
+function bnRows(rows){
+  if(!rows||!rows.length) return '<div class="muted">no rows</div>';
+  // only show the columns that actually vary — a sweep over ncmoe should not print
+  // twelve identical cells per row
+  // type_k and type_v are separate columns on purpose: llama-bench takes them as two
+  // independent lists and runs the CROSS product, so a "q4_0,q8_0" KV sweep is four
+  // combinations, not two. Hiding type_v made half the rows look like duplicates.
+  const keys=['variant','spec_type','spec_n_max','ctx','n_cpu_moe','load_mode','lazy_mode','type_k','type_v','n_ubatch','n_batch','threads','ngl','flash_attn'];
+  const varying=keys.filter(k=>new Set(rows.map(r=>String(r[k]))).size>1);
+  const best={}; rows.forEach(r=>{ if(!best[r.test]||r.tps>best[r.test]) best[r.test]=r.tps; });
+  return `<table class="tbl"><thead><tr>${varying.map(k=>`<th>${k}</th>`).join('')}<th>test</th><th>tok/s</th></tr></thead><tbody>`
+    + rows.map(r=>`<tr>${varying.map(k=>`<td class="mono">${r[k]??'—'}</td>`).join('')}`
+        + `<td class="mono">${r.test}</td>`
+        + `<td class="mono"><b${r.tps===best[r.test]?' style="color:var(--ok)"':''}>${(r.tps||0).toFixed(1)}</b>`
+        + (r.tps_stddev?` <span class="muted">±${r.tps_stddev.toFixed(1)}</span>`:'')+`</td></tr>`).join('')
+    + '</tbody></table>';
+}
+function sbFill(){
+  const sel=$('#sb_preset'); if(!sel) return; const cur=sel.value; sel.innerHTML='';
+  (CFG.presets||[]).forEach(p=>{ const o=document.createElement('option');
+    o.value=p.id; o.textContent=p.id+'  ·  '+p.model; sel.appendChild(o); });
+  if(cur) sel.value=cur;
+}
+$('#sb_run').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  if(!confirm('This stops the running model and restarts it once per variant.\n\nIt takes several minutes. Continue?')) return;
+  const v=i=>{ const e=$(i); return e&&e.value.trim()?e.value.trim():undefined; };
+  const {status,j}=await api('/api/bench',{method:'POST',body:JSON.stringify({
+    mode:'server', preset:$('#sb_preset').value, gen:v('#sb_gen'), reps:v('#sb_reps'),
+    prompt_text:v('#sb_prompt'), label:v('#sb_label')})});
+  if(status===202){ toast('Server benchmark started','ok'); bnPoll(); }
+  else toast(j.message||j.error||'failed','bad');
+};
+function bnRender(j){
+  const st=$('#bn_state');
+  if(j.running){
+    st.textContent='running… '+fmtDur((Date.now()/1000)-j.started)+' elapsed — the GPU is busy, do not start a model';
+    $('#bn_run').disabled=true;
+  } else { st.textContent=j.error?('failed: '+String(j.error).slice(0,160)):''; $('#bn_run').disabled=false; }
+  $('#sb_state').textContent = j.running ? (j.log||[]).slice(-1)[0]||'running…' : '';
+  $('#sb_run').disabled = !!j.running;
+  if(j.cmd){ $('#bn_cmd').style.display='block';
+    // caveats first: a result nobody warned you about is worse than no result
+    $('#bn_cmd').textContent=((j.log||[]).filter(l=>l.length>40).map(l=>'⚠ '+l).join('\n\n')
+      + ((j.log||[]).length?'\n\n':'') + j.cmd); }
+  const saved=j.saved||{};
+  const live = (j.rows&&j.rows.length&&!j.running) ? {} : null;
+  const entries=Object.entries(saved).sort((a,b)=>(b[1].at||0)-(a[1].at||0));
+  $('#bn_results').innerHTML = entries.length ? entries.map(([lab,e])=>`
+    <div class="card" style="margin-bottom:12px">
+      <div class="row" style="justify-content:space-between">
+        <b>${lab}</b>
+        <span class="muted" style="font-size:12px">${new Date((e.at||0)*1000).toLocaleString()}</span>
+      </div>
+      <div class="muted mono" style="font-size:11.5px;margin:4px 0 8px">${e.cmd||''}</div>
+      ${e.error?`<div class="muted" style="color:var(--bad)">${String(e.error).slice(0,400)}</div>`:bnRows(e.rows)}
+      <div class="row" style="margin-top:8px"><button class="ghost sm" data-bnforget="${lab}">Forget</button></div>
+    </div>`).join('') : '<div class="muted">No benchmarks yet.</div>';
+  $('#bn_results').querySelectorAll('[data-bnforget]').forEach(b=>b.onclick=async()=>{
+    await api('/api/bench',{method:'POST',body:JSON.stringify({op:'forget',label:b.dataset.bnforget})});
+    bnPoll(); });
+}
+async function bnPoll(){
+  const {status,j}=await api('/api/bench'); if(status===200) bnRender(j);
+  if(BENCH_TIMER) clearTimeout(BENCH_TIMER);
+  if(j&&j.running) BENCH_TIMER=setTimeout(bnPoll, 4000);
+}
+$('#bn_run').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  const v=i=>{ const e=$(i); return e&&e.value.trim()?e.value.trim():undefined; };
+  const body={model:$('#bn_model').value, ncmoe:v('#bn_ncmoe'), load_mode:v('#bn_load_mode'),
+    lazy_mode:v('#bn_lazy_mode'), kv:v('#bn_kv'), ubatch:v('#bn_ubatch'), threads:v('#bn_threads'),
+    ngl:v('#bn_ngl'), fit_target:v('#bn_fit_target'), extra:v('#bn_extra'),
+    prompt:v('#bn_prompt'), gen:v('#bn_gen'), reps:v('#bn_reps'), label:v('#bn_label')};
+  const {status,j}=await api('/api/bench',{method:'POST',body:JSON.stringify(body)});
+  if(status===202){ toast('Sweep started — this takes minutes, not seconds','ok'); bnPoll(); }
+  else toast(j.message||j.error||'failed','bad');
+};
+
+$('#bn_real').onclick=async()=>{
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  if(!confirm('Start the real model server with these settings?\n\nThe first value of each list is used, and any running model is stopped first.')) return;
+  const v=i=>{ const e=$(i); return e&&e.value.trim()?e.value.trim():undefined; };
+  const {status,j}=await api('/api/bench',{method:'POST',body:JSON.stringify({
+    mode:'run', model:$('#bn_model').value, ctx:v('#bn_ctx'), ncmoe:v('#bn_ncmoe'),
+    load_mode:v('#bn_load_mode'), lazy_mode:v('#bn_lazy_mode'), kv:v('#bn_kv'),
+    ubatch:v('#bn_ubatch'), threads:v('#bn_threads'), ngl:v('#bn_ngl'), extra:v('#bn_extra')})});
+  if(status===202){ toast('Started — opening Command & log','ok'); showView('command'); }
+  else toast(j.message||j.error||'failed','bad');
+};
+
+// ---------- command & log ----------
+let CMD_TIMER=null, CMD_LAST='';
+async function cmdPoll(){
+  const src=$('#cmdSrc').value, n=$('#cmdN').value;
+  const {status,j}=await api(`/api/command?src=${src}&n=${n}`);
+  if(status===200){
+    const c=j.command||{};
+    $('#cmdWho').textContent = c.running
+      ? `${c.engine} · pid ${c.pid}${c.matched_preset?' · preset '+c.matched_preset:' · no matching preset'}${c.started?' · up '+fmtDur((Date.now()/1000)-c.started):''}`
+      : (j.bench&&j.bench.running ? 'no model server — a benchmark is running' : 'nothing running');
+    // one flag per line: a 40-argument command line is unreadable as one string
+    $('#cmdArgv').textContent = c.running
+      ? (c.argv||[]).reduce((acc,a)=>{ if(a.startsWith('-')) acc.push(a); else if(acc.length) acc[acc.length-1]+=' '+a; else acc.push(a); return acc; },[]).join('\n')
+      : 'not running';
+    CMD_LAST = c.cmd||'';
+    $('#cmdEnv').textContent = Object.keys(c.env||{}).length
+      ? Object.entries(c.env).map(([k,v])=>k+'='+v).join('\n') : '—';
+    const bench = (j.bench&&j.bench.running) ? '[benchmark] '+j.bench.label+'\n'+(j.bench.log||[]).join('\n')+'\n\n' : '';
+    $('#cmdLog').textContent = bench + (j.lines||[]).join('\n');
+    if($('#cmdFollow').checked) $('#cmdLog').scrollTop = $('#cmdLog').scrollHeight;
+  }
+  if(CMD_TIMER) clearTimeout(CMD_TIMER);
+  if($('#view-command').classList.contains('on')) CMD_TIMER=setTimeout(cmdPoll, 3000);
+}
+$('#cmdRefresh').onclick=cmdPoll;
+$('#cmdSrc').onchange=cmdPoll; $('#cmdN').onchange=cmdPoll;
+$('#cmdCopy').onclick=()=>{ navigator.clipboard.writeText(CMD_LAST||'').then(()=>toast('Command copied','ok')); };
+
+// ---------- rescan ----------
+async function runRescan(dry){
+  if(!key()){ toast('Enter the API key first','bad'); return; }
+  const out=$('#rescanOut'); out.style.display='block'; out.textContent='scanning…';
+  const {status,j} = dry ? await api('/api/rescan')
+    : await api('/api/models',{method:'POST',body:JSON.stringify({op:'rescan'})});
+  if(status!==200){ out.textContent=j.error||'failed'; return; }
+  const ch=j.changes||[];
+  out.textContent = ch.length
+    ? (dry?'Would change ':'Updated ')+ch.length+':\n'
+      + ch.map(c=>'  '+c.model.padEnd(40)+' '+String(c.field).padEnd(16)
+                   +JSON.stringify(c.old)+' -> '+JSON.stringify(c.new)).join('\n')
+    : 'Config already matches the disk — nothing to change.';
+  if(!dry){ await loadCfg(); await refreshModels();
+            toast(ch.length?ch.length+' model field(s) updated':'Already up to date','ok'); }
+}
+$('#btnRescan').onclick=()=>runRescan(false);
+$('#btnRescanDry').onclick=()=>runRescan(true);
+$('#powerCancel').onclick=async()=>{
+  const {status,j}=await api('/api/system',{method:'POST',body:JSON.stringify({op:'cancel'})});
+  toast(status===200?'Cancelled — the box stays up':(j.error||'failed'), status===200?'ok':'bad');
+};
+
+// ---------- shell: views, nav, theme ----------
+const VIEWS={
+  overview:['Overview','What is serving right now, and how the box is holding up'],
+  models:  ['Models & endpoints','Which backend answers requests to the router'],
+  presets: ['Presets','Context, KV precision and slots — applying one restarts llama.cpp'],
+  runtime: ['Runtime & settings','llama.cpp knobs and the defaults the router injects'],
+  log:     ['Server log','Live tail of the llama.cpp server, newest line first'],
+  command: ['Command & log','The exact command that is running, and the log it is writing'],
+  bench:   ['Benchmark','Sweep a setting and let the numbers pick, instead of guessing'],
+  power:   ['Power','Uptime, and shutting this machine down or restarting it'],
+  ccswitch:  ['CC Switch','Provider profiles for claude / codex / gemini'],
+  ccconnect: ['CC Connect','Chat bridge service — status, web admin, logs']
+};
+
+// ---------- cc switch + cc connect views ----------
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function csLoad(){
+  try{
+    const {j} = await api('/api/ccswitch');
+    const rows = j.providers||[];
+    $('#csMeta').textContent = rows.length+' profiles';
+    $('#csRows').innerHTML = rows.map(p=>`
+      <tr>
+        <td class="mono">${esc(p.name)} ${p.is_current?'<span class="chip on" style="margin-left:6px">current</span>':''}</td>
+        <td>${esc(p.app_type)}</td>
+        <td><button class="sm ghost" data-csact="switch" data-id="${esc(p.id)}">switch</button></td>
+        <td><button class="sm ghost danger" data-csact="rm" data-id="${esc(p.id)}">delete</button></td>
+      </tr>`).join('') || '<tr><td colspan="4" class="muted">no providers</td></tr>';
+  }catch(e){ $('#csRows').innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message||e)}</td></tr>`; }
+}
+document.addEventListener('click', async e=>{
+  const b = e.target.closest('[data-csact]'); if(!b) return;
+  const id = b.dataset.id;
+  if(b.dataset.csact==='switch'){
+    const {status, j} = await api(`/api/ccswitch/providers/${id}/switch`, {method:'POST', body:'{}'});
+    toast(status===200?`switched to ${id}`:(j.error||'failed'), status===200?'ok':'err');
+    csLoad();
+  } else if(b.dataset.csact==='rm'){
+    if(!confirm(`Delete provider '${id}'? A backup is kept in llm-stack/config/ccswitch-backups/`)) return;
+    const {status, j} = await api(`/api/ccswitch/providers/${id}`, {method:'POST', body:'{}'});
+    toast(status===200?'deleted':(j.error||'failed'), status===200?'ok':'err');
+    csLoad();
+  }
+});
+$('#btnCsRefresh').onclick = ()=>{ csLoad(); ccStatus(); };
+$('#btnCsAdd').onclick = async ()=>{
+  const body = {kind:$('#csKind').value, name:$('#csName').value.trim(),
+                key:$('#csKey').value.trim(), base_url:$('#csUrl').value.trim()};
+  if(!body.name||!body.key) return toast('name and API key are required','err');
+  const {status, j} = await api('/api/ccswitch/providers', {method:'POST', body:JSON.stringify(body)});
+  if(status===200){ toast(`added ${j.providers? 'provider':'provider'}`,'ok'); $('#csKey').value=''; $('#csName').value=''; csLoad(); }
+  else toast(j.error||'add failed','err');
+};
+
+async function csUsage(days){
+  document.querySelectorAll('[data-csdays]').forEach(b=>b.classList.toggle('on', b.dataset.csdays==String(days)));
+  try{
+    const {j} = await api(`/api/ccswitch/usage?days=${days}`);
+    const rows = j.rows||[];
+    $('#csUsageRows').innerHTML = rows.map(r=>`
+      <tr><td class="mono">${esc(r.provider)}</td><td>${esc(r.app)}</td>
+      <td class="mono" style="text-align:right">${r.requests}</td>
+      <td class="mono" style="text-align:right">${(r.in_tokens||0).toLocaleString()}</td>
+      <td class="mono" style="text-align:right">${(r.out_tokens||0).toLocaleString()}</td>
+      <td class="mono" style="text-align:right">${r.cost_usd? r.cost_usd.toFixed(4) : '—'}</td></tr>`).join('')
+      || '<tr><td colspan="6" class="muted">no requests logged</td></tr>';
+  }catch(e){ $('#csUsageRows').innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message||e)}</td></tr>`; }
+}
+document.querySelectorAll('[data-csdays]').forEach(b=>{
+  b.onclick = ()=> csUsage(parseInt(b.dataset.csdays,10));
+});
+
+async function ccStatus(){
+  try{
+    const {j} = await api('/api/ccconnect/status');
+    $('#ccSvc').textContent = j.service||'—';
+    $('#ccWeb').textContent = j.web? 'up' : 'down';
+    const info = j.info||{};
+    $('#ccPlat').textContent = (info.connected_platforms||[]).join(', ') || '—';
+    $('#ccVer').textContent = info.version||'—';
+    if(j.auth_token) $('#ccLink').href = `http://${location.hostname}:9820/?token=${j.auth_token}`;
+    $('#ccLog').textContent = (j.log&&j.log.length)? j.log.join('\n') : '(no journal entries)';
+  }catch(e){ $('#ccSvc').textContent = 'error: '+(e.message||e); }
+}
+
+// cc-connect config via panel proxy (no new port)
+async function ccApi(sub, opts){
+  return api('/api/ccconnect/api/' + sub, Object.assign({method:'GET'}, opts||{}));
+}
+async function ccLoadProviders(){
+  try{
+    const {j} = await ccApi('providers');
+    const rows = (j.data&&j.data.providers)||[];
+    $('#ccProvRows').innerHTML = rows.map(p=>`
+      <tr><td class="mono">${esc(p.name)}</td><td>${esc(p.app_type||'')}</td></tr>`).join('')
+      || '<tr><td colspan="2" class="muted">no providers — add one below, or manage them in the CC Switch view</td></tr>';
+  }catch(e){ $('#ccProvRows').innerHTML = `<tr><td colspan="2" class="muted">${esc(e.message||e)}</td></tr>`; }
+}
+$('#btnCcProvAdd').onclick = async ()=>{
+  const name = $('#ccProvName').value.trim(), app = $('#ccProvApp').value, k = $('#ccProvKey').value.trim();
+  if(!name||!k) return toast('name and key required','err');
+  const envKey = app==='claude'?'ANTHROPIC_API_KEY':app==='codex'?'OPENAI_API_KEY':'GEMINI_API_KEY';
+  const body = {name, app_type:app, settings:{env:{[envKey]:k}}};
+  const {status, j} = await ccApi('providers', {method:'POST', body:JSON.stringify(body)});
+  if(status===200){ toast(`added ${name}`,'ok'); $('#ccProvName').value=''; $('#ccProvKey').value=''; ccLoadProviders(); }
+  else toast((j.error||'add failed'),'err');
+};
+
+async function ccLoadSettings(){
+  try{
+    const {j} = await ccApi('settings');
+    const d = j.data||{};
+    $('#ccSetLang').value = d.language||'en';
+    $('#ccSetLogLevel').value = d.log_level||'info';
+    $('#ccSetIdle').value = d.idle_timeout_mins ?? '';
+    $('#ccSettingsRows').innerHTML = Object.entries(d).map(([k,v])=>`
+      <tr><td class="mono">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
+  }catch(e){ $('#ccSettingsRows').innerHTML = `<tr><td colspan="2" class="muted">${esc(e.message||e)}</td></tr>`; }
+}
+$('#btnCcSettingsSave').onclick = async ()=>{
+  const body = {language:$('#ccSetLang').value, log_level:$('#ccSetLogLevel').value};
+  const idle = $('#ccSetIdle').value.trim();
+  if(idle!=='') body.idle_timeout_mins = parseInt(idle,10);
+  const {status, j} = await ccApi('settings', {method:'PATCH', body:JSON.stringify(body)});
+  if(status===200){ toast('settings saved','ok'); ccLoadSettings(); }
+  else toast((j.error||'save failed'),'err');
+};
+
+async function ccLoadProjects(){
+  try{
+    const {j} = await ccApi('projects');
+    const rows = (j.data&&j.data.projects)||[];
+    $('#ccProjRows').innerHTML = rows.map(p=>`
+      <tr><td class="mono">${esc(p.name)}</td><td>${esc(p.agent_type||'')}</td>
+      <td>${(p.platforms||[]).map(esc).join(', ')}</td><td>${p.sessions_count??0}</td></tr>`).join('');
+    const {a} = await ccApi('agents');
+    $('#ccProjAgent').innerHTML = (a.data&&a.data.agents||[]).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  }catch(e){ $('#ccProjRows').innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message||e)}</td></tr>`; }
+}
+$('#btnCcProjSave').onclick = async ()=>{
+  const body = {agent_type:$('#ccProjAgent').value};
+  const {status, j} = await ccApi('projects/home', {method:'PATCH', body:JSON.stringify(body)});
+  if(status===200){ toast('project updated','ok'); ccLoadProjects(); }
+  else toast((j.error||'save failed'),'err');
+};
+
+document.querySelectorAll('[data-ccsec]').forEach(b=>{
+  b.onclick = async ()=>{
+    document.querySelectorAll('[data-ccsec]').forEach(x=>x.classList.toggle('on', x===b));
+    const sec = b.dataset.ccsec;
+    $('#ccSecProviders').style.display = sec==='providers'?'':'none';
+    $('#ccSecSettings').style.display = sec==='settings'?'':'none';
+    $('#ccSecProjects').style.display = sec==='projects'?'':'none';
+    if(sec==='providers') ccLoadProviders();
+    if(sec==='settings') ccLoadSettings();
+    if(sec==='projects') ccLoadProjects();
+  };
+});
+$('#btnCcRefresh').onclick = ccStatus;
+$('#btnCcRestart').onclick = async ()=>{
+  if(!confirm('Restart the cc-connect service?')) return;
+  const {status, j} = await api('/api/ccconnect/restart', {method:'POST', body:'{}'});
+  toast(j.message||'restarted', status===200?'ok':'err');
+  setTimeout(ccStatus, 1500);
+};
+
+function showView(v,anchor){
+  if(!VIEWS[v]) v='overview';
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on', s.id==='view-'+v));
+  document.querySelectorAll('.navitem').forEach(a=>a.classList.toggle('on', a.dataset.view===v));
+  $('#pageTitle').textContent=VIEWS[v][0];
+  $('#pageSub').textContent=VIEWS[v][1];
+  if(location.hash.slice(1)!==v) history.replaceState(null,'','#'+v);
+  if(v==='bench'){ bnFill(); sbFill(); bnPoll(); }
+  if(v==='command') cmdPoll();
+  if(v==='ccswitch'){ csLoad(); csUsage(7); }
+  if(v==='ccconnect'){ ccStatus(); ccLoadProviders(); ccLoadSettings(); ccLoadProjects(); }
+  if(anchor){ const el=document.getElementById(anchor); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); }
+  else window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('[data-view]').forEach(a=>{
+  a.onclick=e=>{ e.preventDefault(); showView(a.dataset.view, a.dataset.anchor); };
+});
+showView(location.hash.slice(1)||'overview');
+
+const SUN='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>';
+const MOON='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M20 14.2A8.5 8.5 0 0 1 9.8 4 8.5 8.5 0 1 0 20 14.2Z"/></svg>';
+function effectiveTheme(){
+  const t=localStorage.getItem('llmPanelTheme');
+  if(t==='light'||t==='dark') return t;
+  return matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+}
+function paintTheme(){
+  const t=localStorage.getItem('llmPanelTheme');
+  if(t==='light'||t==='dark') document.documentElement.dataset.theme=t;
+  else delete document.documentElement.dataset.theme;
+  $('#themeBtn').innerHTML = effectiveTheme()==='dark' ? SUN : MOON;
+  $('#themeBtn').title = 'Switch to '+(effectiveTheme()==='dark'?'light':'dark')+' mode';
+}
+$('#themeBtn').onclick=()=>{ localStorage.setItem('llmPanelTheme', effectiveTheme()==='dark'?'light':'dark'); paintTheme(); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',paintTheme);
+paintTheme();
+
+(async function(){ await loadCfg(); poll(); pollLog(); pollDownloads(); setInterval(poll,2000); setInterval(pollLog,2500); setInterval(pollDownloads,3000); })();
 </script>
 </body>
 </html>

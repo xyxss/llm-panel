@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="llm-stack">
+  <title>llm-stack</title>
+  <circle cx="100" cy="112" r="76" fill="#f7f6f3"/>
+  <g transform="translate(100 116) scale(.92) translate(-100 -116)">
+    <path d="M132 64 C 148 50 162 30 176 6 C 172 44 160 70 144 86 Z"
+          fill="#f7f6f3" stroke="#17181b" stroke-width="11" stroke-linejoin="round"/>
+    <path d="M116 58 C 141 58 159 77 159 102 C 159 124 148 141 128 148
+             C 114 153 100 155 88 158 C 70 163 44 156 40 136
+             C 36 119 50 108 65 104 C 77 100 82 92 86 82
+             C 92 66 102 58 116 58 Z"
+          fill="#f7f6f3" stroke="#17181b" stroke-width="11" stroke-linejoin="round"/>
+    <ellipse cx="112" cy="100" rx="8" ry="9.5" fill="#17181b"/>
+    <circle cx="72" cy="134" r="11" fill="#b8453a"/>
+  </g>
+</svg>

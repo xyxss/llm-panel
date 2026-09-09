@@ -1,0 +1,16 @@
+[Unit]
+Description=LLM control panel + OpenAI router (web UI :8080, router :8001)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# rootless user service — no User=/Group= needed; runs as the logged-in user
+Environment=HOME=%h
+WorkingDirectory=%h/llm-stack
+ExecStart=/usr/bin/python3 %h/llm-stack/panel/panel.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
