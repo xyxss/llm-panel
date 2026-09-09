@@ -25,3 +25,4 @@ vllm-env/
 # editor / pre-change backups
 *.bak
 *.bak-*
+config/ccswitch-backups/

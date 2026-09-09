@@ -4,20 +4,6 @@ A dependency-free (Python stdlib only) web console to operate a local llama.cpp
 model **and** cloud models from one page — behind one stable endpoint your tools
 point at forever.
 
-```
-┌─────────── your tools / harnesses ───────────┐
-│  point them all at the ROUTER, one time:     │
-│     http://<box>:8001/v1                     │
-└───────────────────────┬──────────────────────┘
-                        │  (you flip the switch in the web UI)
-        ┌───────────────┴───────────────┐
-        ▼                               ▼
-  LOCAL llama.cpp                  CLOUD provider
-  a GGUF on your GPU               OpenAI / OpenRouter / DeepSeek / Groq / …
-  (model + context + KV preset,     (any OpenAI-compatible base URL + key,
-   restarts the server)              key stays server-side)
-```
-
 One process (`panel/panel.py`) serves both:
 
 | port   | what                                                                      |
@@ -25,11 +11,7 @@ One process (`panel/panel.py`) serves both:
 | `8080` | the web panel                                                             |
 | `8001` | the OpenAI-compatible router — rewrites `model` and injects the upstream key |
 
----
-
-## Install
-
-Rootless. No sudo for the panel itself.
+## Install (rootless, no sudo)
 
 ```bash
 git clone <your-fork> ~/llm-stack
@@ -51,7 +33,7 @@ chmod 600 ~/.vlm_api_key
 
 - `models` — id → `{dir, label, vision}`. `dir` may use `~` or the `$ROOT` token.
 - `server.llama_bin`, `server.serve_script`, `server.server_log`
-- `estimator.coeffs_gb` — the VRAM fit for **your** GPU (see *VRAM estimates*)
+- `estimator.coeffs_gb` — the VRAM fit for **your** GPU (see 05-vram-estimator.md)
 
 **4. Start it.**
 
@@ -69,17 +51,8 @@ field, press **save**. It is stored only in that browser.
 bin/llm autostart
 ```
 
-Recommended alongside it — the panel spawns `llama-server` and download jobs as
-children, so a default unit stop would kill them too:
-
-```bash
-mkdir -p ~/.config/systemd/user/llm-panel.service.d
-printf '[Service]\nKillMode=process\n' > ~/.config/systemd/user/llm-panel.service.d/override.conf
-systemctl --user daemon-reload
-```
-
 **6. Optional — allow the panel to power the box off.** Rootless by default means
-it *cannot*; the Power view shows the exact rule and a Copy button. It grants only
+it cannot; the Power view shows the exact rule and a Copy button. It grants only
 power-off and reboot to one user:
 
 ```bash
@@ -94,7 +67,7 @@ polkit.addRule(function(action, subject) {
 EOF
 ```
 
-**7. Optional — open the ports on the LAN** (`sudo`, and only if you want other
+**7. Optional — open the ports on the LAN** (sudo, and only if you want other
 machines to reach it):
 
 ```bash
@@ -106,8 +79,6 @@ sudo ufw allow from 192.168.0.0/24 to any port 8001 proto tcp
 > box — switching models, stopping the server, running installs, and (if you added
 > the polkit rule) powering it off. Treat it like a password, and never commit it.
 
----
-
 ## The panel, view by view
 
 A sidebar with five destinations. Light and dark follow the OS, with a toggle in
@@ -117,7 +88,7 @@ the top bar that overrides and persists per browser.
 
 - **Currently serving** — model, preset, engine, KV type, context, slots,
   thinking, context-shift, estimated VRAM, PID. Context shows the per-request
-  figure when slots are split (see *Context vs slots*).
+  figure when slots are split (see Context vs slots).
 - **GPU memory** — used / total with a bar that turns amber past 90% and red past 96%.
 - **System monitor** — GPU util, VRAM, power, temp, clock, fan, CPU util, load,
   RAM, tokens/sec. Polled every 2s.
@@ -126,7 +97,7 @@ the top bar that overrides and persists per browser.
 - **Router** — the URL to point every tool at, a copy button, and which backend is
   currently answering.
 
-### Models & endpoints
+### Models and endpoints
 
 - **Endpoints** — one card per backend: the local model plus any OpenAI-compatible
   cloud provider. **Activate** switches which one the router forwards to; cloud
@@ -137,7 +108,7 @@ the top bar that overrides and persists per browser.
 - **Inference engine** — llama.cpp / vLLM / Ollama. Only one may hold the GPU;
   switching stops the other. Installed engines are green; ones with a configured
   setup script also offer **Reinstall**, and uninstalled ones offer **Install**,
-  which runs the *configured* command server-side (the browser only ever sends an
+  which runs the configured command server-side (the browser only ever sends an
   engine name) in the background, logging to `logs/install-<engine>.log`.
   Reinstalling the engine that is currently serving is refused.
 - **Download a model** — paste `org/name`, a full URL, or `org/name-GGUF:QUANT`
@@ -163,17 +134,17 @@ the top bar that overrides and persists per browser.
 - **Custom preset** — a slider for context, KV precision and slots, with a live
   estimate before you commit.
 
-### Runtime & thinking
+### Runtime and thinking
 
 llama.cpp knobs, applied as env to `serve-vlm.sh`. They take effect on the next
 restart — **Save** stores them, **Save & restart model now** applies immediately.
 
-- **Thinking** `auto | on | off` and **reasoning effort**
+- **Thinking** auto / on / off and **reasoning effort**
 - **Context shift** — off means the server errors when full (correct for agents
   that compact); on silently drops the oldest tokens and corrupts agent state
 - **Flash attention** — required for quantized KV
-- **KV cache across slots** — `shared` (one pool, a single request may use the
-  whole context) or `split` (each slot reserves context ÷ slots)
+- **KV cache across slots** — shared (one pool, a single request may use the
+  whole context) or split (each slot reserves context divided by slots)
 - **cache-reuse**, **image-min-tokens**, **extra llama-server flags**
 - **Operating settings** — generation defaults the router injects when a client
   omits them (temperature, top_p, top_k, min_p, max_tokens, penalties), an optional
@@ -190,8 +161,6 @@ Host uptime, model-server state, and **Shut down** / **Restart** — which stop 
 model first, then run after a 60-second grace period with a Cancel banner visible
 from any view. If the panel lacks permission it says so and shows the one-time
 polkit rule rather than failing later.
-
----
 
 ## Two things that bite
 
@@ -225,8 +194,6 @@ the fit's reference). If neither size can be resolved the figure is marked `?`
 rather than quietly reported as if it were exact. Treat all of it as a guide and
 watch the log for OOM — on a 16 GB card the fit runs ~0.3–0.5 GB conservative.
 
----
-
 ## HTTP API
 
 Everything mutating needs `Authorization: Bearer $(cat ~/.vlm_api_key)`.
@@ -238,22 +205,22 @@ Everything mutating needs `Authorization: Bearer $(cat ~/.vlm_api_key)`.
 | GET | `/api/models` | models found under the models root, with weight sizes |
 | GET | `/api/downloads` | download jobs and progress |
 | GET | `/api/log?n=N` | last N log lines |
-| POST | `/api/switch` | `{preset}` or `{custom:{ctx,kv,parallel,model}}` — restarts the server |
+| POST | `/api/switch` | preset or custom — restarts the server |
 | POST | `/api/stop` | stop the model, free the GPU |
-| POST | `/api/preset` | `{op: upsert\|delete\|reorder}` — upsert accepts `orig_id` to rename |
-| POST | `/api/profile` | `{slot, preset}` |
-| POST | `/api/activate` | `{endpoint}` — which backend the router forwards to |
+| POST | `/api/preset` | upsert / delete / reorder — upsert accepts orig_id to rename |
+| POST | `/api/profile` | slot, preset |
+| POST | `/api/activate` | endpoint — which backend the router forwards to |
 | POST | `/api/endpoint` | add / delete a cloud endpoint |
 | POST | `/api/check` | reachability test for an endpoint |
 | POST | `/api/gen` | generation defaults |
-| POST | `/api/runtime` | llama.cpp runtime knobs (`apply: true` restarts) |
+| POST | `/api/runtime` | llama.cpp runtime knobs (apply: true restarts) |
 | POST | `/api/engine` | switch inference engine |
 | POST | `/api/engine-config` | per-engine options |
-| POST | `/api/engine-install` | `{engine, force}` — runs the configured install script |
-| POST | `/api/download` | `{repo, dest, name, include}` |
+| POST | `/api/engine-install` | engine, force — runs the configured install script |
+| POST | `/api/download` | repo, dest, name, include |
 | POST | `/api/models` | register a downloaded model |
 | POST | `/api/power` | GPU power limit (watts) |
-| POST | `/api/system` | `{op: poweroff\|reboot\|cancel, delay_s, stop_model}` |
+| POST | `/api/system` | op: poweroff/reboot/cancel, delay_s, stop_model |
 
 ## Config
 
@@ -264,11 +231,11 @@ chmod 600, referenced by each endpoint's `key_ref`.
 ## Troubleshooting
 
 - **Client rejected above N tokens** — slots are splitting the context. See
-  *Context vs slots*.
+  Context vs slots.
 - **Model won't load / OOM** — check the estimate against the card and watch the
   Server log; the estimator cannot see other processes' VRAM.
 - **Panel says a change needs a restart** — runtime knobs only apply to a freshly
-  launched server; use *Save & restart model now*.
+  launched server; use Save & restart model now.
 - **Power buttons missing** — the polkit rule isn't installed; the Power view
   shows the exact command.
-- **A panel restart killed the model** — add the `KillMode=process` override above.
+- **A panel restart killed the model** — add the KillMode=process override above.

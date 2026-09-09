@@ -3,25 +3,29 @@
 llama.cpp server (Qwen3.8-27B VLM, UD-IQ3_XXS) — OpenAI-compatible.
 
 ## Connection values
+
 - Base URL (local): `http://localhost:8000/v1`
 - Base URL (LAN):   `http://<box>:8000/v1`
-- API key: REQUIRED -> `sk-YOUR-PANEL-KEY`
-  (stored in ~/.vlm_api_key, chmod 600; serve-vlm.sh reads it automatically.
-   To rotate: write a new key into that file and restart the server.)
+- API key: REQUIRED — stored in ~/.vlm_api_key, chmod 600; serve-vlm.sh reads it automatically.
+  To rotate: write a new key into that file and restart the server.
 - Model id: `qwen3-vl`
 - Capabilities: chat/completions, vision (image_url), tool/function calling (--jinja)
 
-## ⭐ Recommended: point at the ROUTER, switch models from the web panel
+## Recommended: point at the ROUTER, switch models from the web panel
+
 Instead of the direct URL below, point harnesses at the **router** and pick the
 model (local Qwen, or a cloud provider) live in the panel at http://<box>:8080 —
 no harness reconfig when you switch.
-- Base URL: `http://<box>:8001/v1`  (localhost on the box: `http://localhost:8001/v1`)
-- API key: same `sk-cc1504...` (the router requires it, then injects the real
+
+- Base URL: `http://<box>:8001/v1` (localhost on the box: `http://localhost:8001/v1`)
+- API key: same as ~/.vlm_api_key (the router requires it, then injects the real
   upstream key server-side).
 - Model id: send anything — the router rewrites it to the active endpoint's model.
-The direct `:8000/v1` below still works and always hits the local model only.
+
+The direct :8000/v1 below still works and always hits the local model only.
 
 ## Universal env vars (works for most CLI harnesses)
+
 ```bash
 export OPENAI_BASE_URL="http://localhost:8000/v1"
 export OPENAI_API_KEY="sk-YOUR-PANEL-KEY"
@@ -30,7 +34,8 @@ export OPENAI_MODEL="qwen3-vl"
 export OPENAI_API_BASE="http://localhost:8000/v1"
 ```
 
-## OpenCode  (~/.config/opencode/opencode.json)
+## OpenCode (~/.config/opencode/opencode.json)
+
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
@@ -44,9 +49,11 @@ export OPENAI_API_BASE="http://localhost:8000/v1"
   }
 }
 ```
+
 Then pick the model `llamacpp/qwen3-vl` (Tab / model switcher).
 
 ## Aider
+
 ```bash
 aider --openai-api-base http://localhost:8000/v1 \
       --openai-api-key sk-YOUR-PANEL-KEY \
@@ -54,15 +61,18 @@ aider --openai-api-base http://localhost:8000/v1 \
 ```
 
 ## Generic "custom OpenAI provider" template
+
 For pi / deepseek-harness / continue.dev / any other tool, find its
 "custom provider" or "OpenAI-compatible" section and map:
+
 ```
 baseURL / api_base  =  http://localhost:8000/v1
 apiKey  / api_key   =  sk-YOUR-PANEL-KEY
 model               =  qwen3-vl
 ```
 
-## Continue.dev  (~/.continue/config.json -> "models")
+## Continue.dev (~/.continue/config.json → "models")
+
 ```json
 {
   "title": "Qwen3-VL (local)",
@@ -74,12 +84,16 @@ model               =  qwen3-vl
 ```
 
 ## Quick tests
+
 Text:
+
 ```bash
 curl -s http://localhost:8000/v1/chat/completions -H 'Content-Type: application/json' \
   -d '{"model":"qwen3-vl","messages":[{"role":"user","content":"hello"}]}'
 ```
+
 Vision (image URL or base64 data URI):
+
 ```bash
 curl -s http://localhost:8000/v1/chat/completions -H 'Content-Type: application/json' -d '{
   "model":"qwen3-vl",
@@ -90,6 +104,7 @@ curl -s http://localhost:8000/v1/chat/completions -H 'Content-Type: application/
 ```
 
 ## Notes
+
 - This is a REASONING model: responses include `reasoning_content`. Some
   harnesses show the thinking separately; give it enough max_tokens.
 - Tool calling needs `--jinja` (already enabled).
